@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Authentication</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #fff5f7 0%, #ffe8ec 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            width: 100%;
+            max-width: 450px;
+            padding: 40px;
+            transition: all 0.3s ease;
+        }
+
+        h2 {
+            color: #5a3e36;
+            margin-bottom: 30px;
+            text-align: center;
+            font-size: 28px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #5a3e36;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="email"],
+        input[type="password"],
+        select,
+        textarea {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: all 0.3s ease;
+            font-family: inherit;
+        }
+
+        input:focus,
+        select:focus,
+        textarea:focus {
+            outline: none;
+            border-color: #ff6b9d;
+            box-shadow: 0 0 0 3px rgba(255, 107, 157, 0.1);
+        }
+
+        textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+        }
+
+        .radio-option {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .radio-option input[type="radio"] {
+            width: auto;
+            cursor: pointer;
+        }
+
+        .radio-option label {
+            margin: 0;
+            cursor: pointer;
+        }
+
+        button {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+            margin-top: 10px;
+        }
+
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(255, 107, 157, 0.3);
+        }
+
+        button:active {
+            transform: translateY(0);
+        }
+
+        .switch-form {
+            text-align: center;
+            margin-top: 25px;
+            color: #666;
+            font-size: 14px;
+        }
+
+        .switch-form a {
+            color: #ff6b9d;
+            text-decoration: none;
+            font-weight: 600;
+            cursor: pointer;
+        }
+
+        .switch-form a:hover {
+            text-decoration: underline;
+        }
+
+        .hidden {
+            display: none;
+        }
+
+        .conditional-fields {
+            border-top: 2px solid #f0f0f0;
+            padding-top: 20px;
+            margin-top: 20px;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        select {
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sign In Form -->
+        <div id="signinForm">
+            <h2>Sign In</h2>
+            <form onsubmit="handleSignIn(event)">
+                <div class="form-group">
+                    <label for="signinRole">Select Role</label>
+                    <select id="signinRole" required onchange="handleSignInRoleChange()">
+                        <option value="">Choose your role</option>
+                        <option value="customer">Customer</option>
+                        <option value="vendor">Vendor</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="signinEmail">Username/Email</label>
+                    <input type="text" id="signinEmail" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="signinPassword">Password</label>
+                    <input type="password" id="signinPassword" required>
+                </div>
+
+                <div id="signinSecretKeyField" class="form-group hidden">
+                    <label for="signinSecretKey">Secret Key</label>
+                    <input type="password" id="signinSecretKey">
+                </div>
+
+                <button type="submit">Sign In</button>
+            </form>
+
+            <div class="switch-form">
+                Don't have an account? <a onclick="switchToSignUp()">Sign Up</a>
+            </div>
+        </div>
+
+        <!-- Sign Up Form -->
+        <div id="signupForm" class="hidden">
+            <h2>Sign Up</h2>
+            <form onsubmit="handleSignUp(event)">
+                <div class="form-group">
+                    <label for="signupRole">Select Role</label>
+                    <select id="signupRole" required onchange="handleRoleChange()">
+                        <option value="">Choose your role</option>
+                        <option value="customer">Customer</option>
+                        <option value="vendor">Vendor</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="signupEmail">Email</label>
+                    <input type="email" id="signupEmail" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="signupPassword">Password</label>
+                    <input type="password" id="signupPassword" required>
+                </div>
+
+                <!-- Customer Fields -->
+                <div id="customerFields" class="conditional-fields hidden">
+                    <div class="form-group">
+                        <label for="customerName">Full Name</label>
+                        <input type="text" id="customerName">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="customerAddress">Address</label>
+                        <textarea id="customerAddress"></textarea>
+                    </div>
+                </div>
+
+                <!-- Vendor Fields -->
+                <div id="vendorFields" class="conditional-fields hidden">
+                    <div class="form-group">
+                        <label for="vendorName">Full Name</label>
+                        <input type="text" id="vendorName">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="shopName">Shop Name</label>
+                        <input type="text" id="shopName">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="vendorAddress">Address</label>
+                        <textarea id="vendorAddress"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Custom Cake Ordering</label>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="customCakeYes" name="customCake" value="yes">
+                                <label for="customCakeYes">Yes</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="customCakeNo" name="customCake" value="no" checked>
+                                <label for="customCakeNo">No</label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <button type="submit">Sign Up</button>
+            </form>
+
+            <div class="switch-form">
+                Already have an account? <a onclick="switchToSignIn()">Sign In</a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function switchToSignUp() {
+            document.getElementById('signinForm').classList.add('hidden');
+            document.getElementById('signupForm').classList.remove('hidden');
+            document.getElementById('signupForm').classList.add('fade-in');
+        }
+
+        function switchToSignIn() {
+            document.getElementById('signupForm').classList.add('hidden');
+            document.getElementById('signinForm').classList.remove('hidden');
+            document.getElementById('signinForm').classList.add('fade-in');
+        }
+
+        function handleSignInRoleChange() {
+            const role = document.getElementById('signinRole').value;
+            const secretKeyField = document.getElementById('signinSecretKeyField');
+            const secretKeyInput = document.getElementById('signinSecretKey');
+            
+            if (role === 'admin') {
+                secretKeyField.classList.remove('hidden');
+                secretKeyField.classList.add('fade-in');
+                secretKeyInput.required = true;
+            } else {
+                secretKeyField.classList.add('hidden');
+                secretKeyInput.required = false;
+            }
+        }
+
+        function handleRoleChange() {
+            const role = document.getElementById('signupRole').value;
+            
+            // Hide all conditional fields
+            document.getElementById('customerFields').classList.add('hidden');
+            document.getElementById('vendorFields').classList.add('hidden');
+
+            // Show relevant fields with animation
+            if (role === 'customer') {
+                const customerFields = document.getElementById('customerFields');
+                customerFields.classList.remove('hidden');
+                customerFields.classList.add('fade-in');
+                document.getElementById('customerName').required = true;
+                document.getElementById('customerAddress').required = true;
+            } else if (role === 'vendor') {
+                const vendorFields = document.getElementById('vendorFields');
+                vendorFields.classList.remove('hidden');
+                vendorFields.classList.add('fade-in');
+                document.getElementById('vendorName').required = true;
+                document.getElementById('shopName').required = true;
+                document.getElementById('vendorAddress').required = true;
+            }
+        }
+
+        function handleSignIn(e) {
+            e.preventDefault();
+            
+            const role = document.getElementById('signinRole').value;
+            const email = document.getElementById('signinEmail').value;
+            const password = document.getElementById('signinPassword').value;
+
+            const data = { role, email, password };
+            
+            if (role === 'admin') {
+                const secretKey = document.getElementById('signinSecretKey').value;
+                data.secretKey = secretKey;
+            }
+            
+            console.log('Sign In Data:', data);
+            alert(`Sign In Successful!\nRole: ${role}\nEmail: ${email}`);
+        }
+
+        function handleSignUp(e) {
+            e.preventDefault();
+            
+            const role = document.getElementById('signupRole').value;
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+
+            const data = { role, email, password };
+
+            if (role === 'customer') {
+                data.name = document.getElementById('customerName').value;
+                data.address = document.getElementById('customerAddress').value;
+            } else if (role === 'vendor') {
+                data.name = document.getElementById('vendorName').value;
+                data.shopName = document.getElementById('shopName').value;
+                data.address = document.getElementById('vendorAddress').value;
+                data.customCake = document.querySelector('input[name="customCake"]:checked').value;
+            }
+
+            console.log('Sign Up Data:', data);
+            alert(`Sign Up Successful!\nRole: ${role}\nEmail: ${email}\nCheck console for full data.`);
+        }
+    </script>
+</body>
+</html>
