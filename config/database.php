@@ -12,9 +12,9 @@ function getDBConnection() {
     if ($conn->connect_error) {
         die("Connection failed: " . $conn->connect_error);
     }else{
-        echo"Connected Successfully";
-        return $conn;
+        echo "Connected Successfully";
     }
+        return $conn;
 }
 
 // Start session if not already started
