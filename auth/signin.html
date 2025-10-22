@@ -337,7 +337,7 @@
                 document.getElementById('vendorAddress').required = true;
             }
         }
-
+        /*
         function handleSignIn(e) {
             e.preventDefault();
             
@@ -354,9 +354,9 @@
             
             console.log('Sign In Data:', data);
             alert(`Sign In Successful!\nRole: ${role}\nEmail: ${email}`);
-        }
+        }*/
 
-        function handleSignUp(e) {
+        /*function handleSignUp(e) {
             e.preventDefault();
             
             const role = document.getElementById('signupRole').value;
@@ -377,7 +377,55 @@
 
             console.log('Sign Up Data:', data);
             alert(`Sign Up Successful!\nRole: ${role}\nEmail: ${email}\nCheck console for full data.`);
+        }*/
+        function handleSignUp(e) {
+    e.preventDefault();
+    
+    const role = document.getElementById('signupRole').value;
+    const email = document.getElementById('signupEmail').value;
+    const password = document.getElementById('signupPassword').value;
+
+    const formData = new FormData();
+    formData.append('role', role);
+    formData.append('email', email);
+    formData.append('password', password);
+
+    if (role === 'customer') {
+        const name = document.getElementById('customerName').value;
+        const address = document.getElementById('customerAddress').value;
+        formData.append('name', name);
+        formData.append('address', address);
+    } else if (role === 'vendor') {
+        const name = document.getElementById('vendorName').value;
+        const shopName = document.getElementById('shopName').value;
+        const address = document.getElementById('vendorAddress').value;
+        const customCake = document.querySelector('input[name="customCake"]:checked').value;
+        formData.append('name', name);
+        formData.append('shopName', shopName);
+        formData.append('address', address);
+        formData.append('customCake', customCake);
+    }
+
+    // Send to backend
+    fetch('signup.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(data.message);
+            // Switch to sign in form
+            switchToSignIn();
+        } else {
+            alert(data.message);
         }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('An error occurred. Please try again.');
+    });
+}
     </script>
 </body>
 </html>

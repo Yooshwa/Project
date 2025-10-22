@@ -17,7 +17,7 @@ function getDBConnection() {
 
 // Start session if not already started
 if (session_status() === PHP_SESSION_NONE) {
-    //echo "Connected Successfully";
+    echo "Connected Successfully";
     session_start();
 }
 ?>

@@ -276,7 +276,7 @@
             <ul class="nav-links" id="navLinks">
                 <li><a href="index.php" class="active">Home</a></li>
                 <li><a href="about.html">About</a></li>
-                <li><a href="signin.php">Sign In</a></li>
+                <li><a href="auth/signin.php">Sign In</a></li>
             </ul>
         </div>
     </nav>
