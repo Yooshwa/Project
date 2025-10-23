@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Authentication</title>
+    <title>Authentication - Sweetkart</title>
     <style>
         * {
             margin: 0;
@@ -168,6 +168,21 @@
         select {
             cursor: pointer;
         }
+
+        .back-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .back-link a {
+            color: #ff6b9d;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        .back-link a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -175,7 +190,7 @@
         <!-- Sign In Form -->
         <div id="signinForm">
             <h2>Sign In</h2>
-            <form onsubmit="handleSignIn(event)">
+            <form id="signinFormElement">
                 <div class="form-group">
                     <label for="signinRole">Select Role</label>
                     <select id="signinRole" required onchange="handleSignInRoleChange()">
@@ -207,12 +222,16 @@
             <div class="switch-form">
                 Don't have an account? <a onclick="switchToSignUp()">Sign Up</a>
             </div>
+
+            <div class="back-link">
+                <a href="../index.php">← Back to Home</a>
+            </div>
         </div>
 
         <!-- Sign Up Form -->
         <div id="signupForm" class="hidden">
             <h2>Sign Up</h2>
-            <form onsubmit="handleSignUp(event)">
+            <form id="signupFormElement">
                 <div class="form-group">
                     <label for="signupRole">Select Role</label>
                     <select id="signupRole" required onchange="handleRoleChange()">
@@ -229,7 +248,7 @@
 
                 <div class="form-group">
                     <label for="signupPassword">Password</label>
-                    <input type="password" id="signupPassword" required>
+                    <input type="password" id="signupPassword" required minlength="8">
                 </div>
 
                 <!-- Customer Fields -->
@@ -283,10 +302,15 @@
             <div class="switch-form">
                 Already have an account? <a onclick="switchToSignIn()">Sign In</a>
             </div>
+
+            <div class="back-link">
+                <a href="../home.php">← Back to Home</a>
+            </div>
         </div>
     </div>
 
     <script>
+        // Switch between Sign In and Sign Up forms
         function switchToSignUp() {
             document.getElementById('signinForm').classList.add('hidden');
             document.getElementById('signupForm').classList.remove('hidden');
@@ -299,6 +323,7 @@
             document.getElementById('signinForm').classList.add('fade-in');
         }
 
+        // Show secret key field for admin sign in
         function handleSignInRoleChange() {
             const role = document.getElementById('signinRole').value;
             const secretKeyField = document.getElementById('signinSecretKeyField');
@@ -314,12 +339,20 @@
             }
         }
 
+        // Show/hide fields based on selected role in sign up
         function handleRoleChange() {
             const role = document.getElementById('signupRole').value;
             
             // Hide all conditional fields
             document.getElementById('customerFields').classList.add('hidden');
             document.getElementById('vendorFields').classList.add('hidden');
+
+            // Reset required attributes
+            document.getElementById('customerName').required = false;
+            document.getElementById('customerAddress').required = false;
+            document.getElementById('vendorName').required = false;
+            document.getElementById('shopName').required = false;
+            document.getElementById('vendorAddress').required = false;
 
             // Show relevant fields with animation
             if (role === 'customer') {
@@ -337,95 +370,98 @@
                 document.getElementById('vendorAddress').required = true;
             }
         }
-        /*
-        function handleSignIn(e) {
+
+        // Handle Sign In Form Submission
+        document.getElementById('signinFormElement').addEventListener('submit', function(e) {
             e.preventDefault();
             
             const role = document.getElementById('signinRole').value;
             const email = document.getElementById('signinEmail').value;
             const password = document.getElementById('signinPassword').value;
 
-            const data = { role, email, password };
+            const formData = new FormData();
+            formData.append('role', role);
+            formData.append('email', email);
+            formData.append('password', password);
             
             if (role === 'admin') {
                 const secretKey = document.getElementById('signinSecretKey').value;
-                data.secretKey = secretKey;
+                formData.append('secretKey', secretKey);
             }
             
-            console.log('Sign In Data:', data);
-            alert(`Sign In Successful!\nRole: ${role}\nEmail: ${email}`);
-        }*/
+            // Send to backend
+            fetch('signin.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    window.location.href = data.redirect;
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred during sign in. Please try again.');
+            });
+        });
 
-        /*function handleSignUp(e) {
+        // Handle Sign Up Form Submission
+        document.getElementById('signupFormElement').addEventListener('submit', function(e) {
             e.preventDefault();
             
             const role = document.getElementById('signupRole').value;
             const email = document.getElementById('signupEmail').value;
             const password = document.getElementById('signupPassword').value;
 
-            const data = { role, email, password };
+            const formData = new FormData();
+            formData.append('role', role);
+            formData.append('email', email);
+            formData.append('password', password);
 
             if (role === 'customer') {
-                data.name = document.getElementById('customerName').value;
-                data.address = document.getElementById('customerAddress').value;
+                const name = document.getElementById('customerName').value;
+                const address = document.getElementById('customerAddress').value;
+                formData.append('name', name);
+                formData.append('address', address);
             } else if (role === 'vendor') {
-                data.name = document.getElementById('vendorName').value;
-                data.shopName = document.getElementById('shopName').value;
-                data.address = document.getElementById('vendorAddress').value;
-                data.customCake = document.querySelector('input[name="customCake"]:checked').value;
+                const name = document.getElementById('vendorName').value;
+                const shopName = document.getElementById('shopName').value;
+                const address = document.getElementById('vendorAddress').value;
+                const customCake = document.querySelector('input[name="customCake"]:checked').value;
+                formData.append('name', name);
+                formData.append('shopName', shopName);
+                formData.append('address', address);
+                formData.append('customCake', customCake);
             }
 
-            console.log('Sign Up Data:', data);
-            alert(`Sign Up Successful!\nRole: ${role}\nEmail: ${email}\nCheck console for full data.`);
-        }*/
-        function handleSignUp(e) {
-    e.preventDefault();
-    
-    const role = document.getElementById('signupRole').value;
-    const email = document.getElementById('signupEmail').value;
-    const password = document.getElementById('signupPassword').value;
-
-    const formData = new FormData();
-    formData.append('role', role);
-    formData.append('email', email);
-    formData.append('password', password);
-
-    if (role === 'customer') {
-        const name = document.getElementById('customerName').value;
-        const address = document.getElementById('customerAddress').value;
-        formData.append('name', name);
-        formData.append('address', address);
-    } else if (role === 'vendor') {
-        const name = document.getElementById('vendorName').value;
-        const shopName = document.getElementById('shopName').value;
-        const address = document.getElementById('vendorAddress').value;
-        const customCake = document.querySelector('input[name="customCake"]:checked').value;
-        formData.append('name', name);
-        formData.append('shopName', shopName);
-        formData.append('address', address);
-        formData.append('customCake', customCake);
-    }
-
-    // Send to backend
-    fetch('signup.php', {
-        method: 'POST',
-        body: formData
-    })
-    .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            alert(data.message);
-            // Switch to sign in form
-            switchToSignIn();
-        } else {
-            alert(data.message);
-        }
-    })
-    .catch(error => {
-        console.error('Error:', error);
-        alert('An error occurred. Please try again.');
-    });
-}
+            // Send to backend
+            fetch('signup.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    // Switch to sign in form
+                    switchToSignIn();
+                    // Clear the form
+                    document.getElementById('signupFormElement').reset();
+                    document.getElementById('customerFields').classList.add('hidden');
+                    document.getElementById('vendorFields').classList.add('hidden');
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred during sign up. Please try again.');
+            });
+        });
     </script>
 </body>
 </html>
