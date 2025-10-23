@@ -1,10 +1,13 @@
 <?php
-error_reporting(E_ALL);
-ini_set('display_errors', 1);
+// Prevent any output before JSON
+ob_start();
 
-require_once __DIR__ . '/../config/database.php';
-$conn = getDBConnection();
+require_once '../config/database.php';
 
+// Clear any previous output
+ob_clean();
+
+// Set JSON header
 header('Content-Type: application/json');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -110,6 +113,7 @@ try {
     // Commit transaction
     $conn->commit();
     
+    // Send success response
     echo json_encode([
         'success' => true, 
         'message' => $message,
@@ -123,4 +127,7 @@ try {
 }
 
 $conn->close();
+
+// End output buffering and send
+ob_end_flush();
 ?>

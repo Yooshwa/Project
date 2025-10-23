@@ -304,7 +304,7 @@
             </div>
 
             <div class="back-link">
-                <a href="../home.php">← Back to Home</a>
+                <a href="../index.php">← Back to Home</a>
             </div>
         </div>
     </div>
@@ -389,23 +389,37 @@
                 formData.append('secretKey', secretKey);
             }
             
+            console.log('Sending signin request...');
+            
             // Send to backend
-            fetch('signin.php', {
+            fetch('signin_handler.php', {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(data.message);
-                    window.location.href = data.redirect;
-                } else {
-                    alert(data.message);
+            .then(response => {
+                console.log('Signin response status:', response.status);
+                return response.text();
+            })
+            .then(text => {
+                console.log('Signin raw response:', text);
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Signin parsed JSON:', data);
+                    
+                    if (data.success) {
+                        alert(data.message);
+                        window.location.href = data.redirect;
+                    } else {
+                        alert(data.message);
+                    }
+                } catch (e) {
+                    console.error('JSON parse error:', e);
+                    alert('Error: Invalid response from server. Check console.');
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred during sign in. Please try again.');
+                console.error('Signin error:', error);
+                alert('Network error occurred. Please try again.');
             });
         });
 
@@ -417,6 +431,12 @@
             const email = document.getElementById('signupEmail').value;
             const password = document.getElementById('signupPassword').value;
 
+            // Validate fields
+            if (!role || !email || !password) {
+                alert('Please fill all required fields');
+                return;
+            }
+
             const formData = new FormData();
             formData.append('role', role);
             formData.append('email', email);
@@ -425,41 +445,70 @@
             if (role === 'customer') {
                 const name = document.getElementById('customerName').value;
                 const address = document.getElementById('customerAddress').value;
+                
+                if (!name || !address) {
+                    alert('Please fill all customer fields');
+                    return;
+                }
+                
                 formData.append('name', name);
                 formData.append('address', address);
             } else if (role === 'vendor') {
                 const name = document.getElementById('vendorName').value;
                 const shopName = document.getElementById('shopName').value;
                 const address = document.getElementById('vendorAddress').value;
-                const customCake = document.querySelector('input[name="customCake"]:checked').value;
+                const customCakeElement = document.querySelector('input[name="customCake"]:checked');
+                
+                if (!name || !shopName || !address) {
+                    alert('Please fill all vendor fields');
+                    return;
+                }
+                
+                const customCake = customCakeElement ? customCakeElement.value : 'no';
+                
                 formData.append('name', name);
                 formData.append('shopName', shopName);
                 formData.append('address', address);
                 formData.append('customCake', customCake);
             }
 
+            console.log('Sending signup request...');
+            console.log('Role:', role);
+            console.log('Email:', email);
+
             // Send to backend
-            fetch('signup.php', {
+            fetch('signup_handler.php', {
                 method: 'POST',
                 body: formData
             })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(data.message);
-                    // Switch to sign in form
-                    switchToSignIn();
-                    // Clear the form
-                    document.getElementById('signupFormElement').reset();
-                    document.getElementById('customerFields').classList.add('hidden');
-                    document.getElementById('vendorFields').classList.add('hidden');
-                } else {
-                    alert(data.message);
+            .then(response => {
+                console.log('Signup response status:', response.status);
+                return response.text();
+            })
+            .then(text => {
+                console.log('Signup raw response:', text);
+                try {
+                    const data = JSON.parse(text);
+                    console.log('Signup parsed JSON:', data);
+                    
+                    if (data.success) {
+                        alert(data.message);
+                        switchToSignIn();
+                        document.getElementById('signupFormElement').reset();
+                        document.getElementById('customerFields').classList.add('hidden');
+                        document.getElementById('vendorFields').classList.add('hidden');
+                    } else {
+                        alert(data.message);
+                    }
+                } catch (e) {
+                    console.error('JSON parse error:', e);
+                    console.error('Received text:', text);
+                    alert('Error: Invalid response from server. Check console for details.');
                 }
             })
             .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred during sign up. Please try again.');
+                console.error('Signup fetch error:', error);
+                alert('Network error occurred. Please check console for details.');
             });
         });
     </script>
