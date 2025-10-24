@@ -288,7 +288,7 @@
                 Order delicious cakes & sweets from trusted vendors near you. 
                 Fresh, homemade, and delivered with love.
             </p>
-            <a href="auth/signup.php" class="cta-button">Get Started</a>
+            <a href="auth/signin.html" class="cta-button">Get Started</a>
 
             <div class="features">
                 <div class="feature-item">
