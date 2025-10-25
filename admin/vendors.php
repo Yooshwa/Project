@@ -4,7 +4,7 @@ require_once '../config/auth_check.php';
 
 // Check if user is admin
 if ($_SESSION['role'] !== 'admin') {
-    header("Location: ../home.php");
+    header("Location: ../index.php");
     exit;
 }
 
@@ -15,7 +15,7 @@ $user_name = $_SESSION['name'];
 require_once '../config/database.php';
 $conn = getDBConnection();
 
-// Get all vendors with their user information and shop details
+// Get all vendors with their user information, shop details, and product counts
 $query = "SELECT 
     v.vendor_id,
     v.user_id,
@@ -26,10 +26,15 @@ $query = "SELECT
     u.email,
     u.address,
     s.shop_name,
-    s.shop_id
+    s.shop_id,
+    COUNT(DISTINCT s2.shop_id) as total_shops,
+    COUNT(p.product_id) as total_products
 FROM Vendors v
 JOIN Users u ON v.user_id = u.user_id
 LEFT JOIN Shops s ON v.vendor_id = s.vendor_id
+LEFT JOIN Shops s2 ON v.vendor_id = s2.vendor_id
+LEFT JOIN Products p ON s2.shop_id = p.shop_id
+GROUP BY v.vendor_id, v.user_id, v.status, v.custom_cake_flag, v.created_at, u.name, u.email, u.address, s.shop_name, s.shop_id
 ORDER BY 
     CASE v.status
         WHEN 'pending' THEN 1
@@ -41,7 +46,14 @@ ORDER BY
 $result = $conn->query($query);
 $vendors = [];
 while ($row = $result->fetch_assoc()) {
-    $vendors[] = $row;
+    $vendor_id = $row['vendor_id'];
+    if (!isset($vendors[$vendor_id])) {
+        $vendors[$vendor_id] = $row;
+        $vendors[$vendor_id]['shop_names'] = [];
+    }
+    if ($row['shop_name']) {
+        $vendors[$vendor_id]['shop_names'][] = $row['shop_name'];
+    }
 }
 
 $conn->close();
@@ -181,6 +193,7 @@ $conn->close();
             color: #5a3e36;
             font-weight: 600;
             border-bottom: 2px solid #ffe8ec;
+            white-space: nowrap;
         }
 
         td {
@@ -219,18 +232,20 @@ $conn->close();
         .action-buttons {
             display: flex;
             gap: 0.5rem;
+            flex-wrap: wrap;
         }
 
         .btn {
             padding: 0.5rem 1rem;
             border: none;
             border-radius: 8px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
             text-decoration: none;
             display: inline-block;
+            white-space: nowrap;
         }
 
         .btn-approve {
@@ -244,22 +259,23 @@ $conn->close();
         }
 
         .btn-reject {
-            background: #f44336;
+            background: #ff9800;
             color: white;
         }
 
         .btn-reject:hover {
-            background: #da190b;
+            background: #e68900;
             transform: translateY(-2px);
         }
 
-        .btn-view {
-            background: #2196f3;
+        .btn-delete {
+            background: #f44336;
             color: white;
         }
 
-        .btn-view:hover {
-            background: #0b7dda;
+        .btn-delete:hover {
+            background: #da190b;
+            transform: translateY(-2px);
         }
 
         .custom-cake-badge {
@@ -268,6 +284,36 @@ $conn->close();
             padding: 0.3rem 0.6rem;
             border-radius: 12px;
             font-size: 0.75rem;
+        }
+
+        .product-count {
+            display: inline-block;
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 0.3rem 0.8rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .shop-count {
+            display: inline-block;
+            background: #f3e5f5;
+            color: #7b1fa2;
+            padding: 0.3rem 0.8rem;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .shop-names {
+            font-size: 0.85rem;
+            color: #5a3e36;
+        }
+
+        .shop-names-small {
+            color: #7a5f57;
+            font-size: 0.8rem;
         }
 
         .no-vendors {
@@ -279,6 +325,84 @@ $conn->close();
         .no-vendors-icon {
             font-size: 4rem;
             margin-bottom: 1rem;
+        }
+
+        /* Confirmation Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal-content {
+            background: white;
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideDown {
+            from { transform: translateY(-50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+
+        .modal-header {
+            color: #5a3e36;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal-body {
+            color: #7a5f57;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .modal-warning {
+            background: #fff3cd;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            border-left: 4px solid #ffa500;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+        }
+
+        .btn-cancel {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-cancel:hover {
+            background: #5a6268;
+        }
+
+        .btn-confirm-delete {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-confirm-delete:hover {
+            background: #da190b;
         }
     </style>
 </head>
@@ -307,9 +431,9 @@ $conn->close();
                 <thead>
                     <tr>
                         <th>Vendor Info</th>
-                        <th>Shop Name</th>
+                        <th>Shops</th>
+                        <th>Products</th>
                         <th>Email</th>
-                        <th>Address</th>
                         <th>Custom Cakes</th>
                         <th>Status</th>
                         <th>Registered</th>
@@ -324,9 +448,22 @@ $conn->close();
                             <br>
                             <small style="color: #7a5f57;">ID: <?php echo $vendor['vendor_id']; ?></small>
                         </td>
-                        <td><?php echo htmlspecialchars($vendor['shop_name'] ?? 'N/A'); ?></td>
+                        <td>
+                            <span class="shop-count">🏪 <?php echo $vendor['total_shops']; ?> Shop(s)</span>
+                            <?php if (count($vendor['shop_names']) > 0): ?>
+                                <br>
+                                <span class="shop-names-small">
+                                    <?php echo htmlspecialchars(implode(', ', array_slice($vendor['shop_names'], 0, 2))); ?>
+                                    <?php if (count($vendor['shop_names']) > 2): ?>
+                                        <br>+ <?php echo count($vendor['shop_names']) - 2; ?> more
+                                    <?php endif; ?>
+                                </span>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <span class="product-count">🧁 <?php echo $vendor['total_products']; ?></span>
+                        </td>
                         <td><?php echo htmlspecialchars($vendor['email']); ?></td>
-                        <td><?php echo htmlspecialchars($vendor['address'] ?? 'N/A'); ?></td>
                         <td>
                             <?php if ($vendor['custom_cake_flag']): ?>
                                 <span class="custom-cake-badge">🎂 Available</span>
@@ -351,13 +488,16 @@ $conn->close();
                                     </button>
                                 <?php elseif ($vendor['status'] === 'approved'): ?>
                                     <button class="btn btn-reject" onclick="updateVendorStatus(<?php echo $vendor['vendor_id']; ?>, 'rejected')">
-                                        ✗ Reject
+                                        ✗ Suspend
                                     </button>
                                 <?php elseif ($vendor['status'] === 'rejected'): ?>
                                     <button class="btn btn-approve" onclick="updateVendorStatus(<?php echo $vendor['vendor_id']; ?>, 'approved')">
                                         ✓ Approve
                                     </button>
                                 <?php endif; ?>
+                                <button class="btn btn-delete" onclick="showDeleteModal(<?php echo $vendor['vendor_id']; ?>, '<?php echo htmlspecialchars($vendor['name'], ENT_QUOTES); ?>', <?php echo $vendor['total_shops']; ?>, <?php echo $vendor['total_products']; ?>)">
+                                    🗑️ Delete
+                                </button>
                             </div>
                         </td>
                     </tr>
@@ -374,9 +514,36 @@ $conn->close();
         </div>
     </div>
 
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">⚠️ Confirm Deletion</div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete <strong id="vendorName"></strong>?</p>
+                <div class="modal-warning">
+                    <strong>⚠️ Warning:</strong> This action cannot be undone!
+                    <br><br>
+                    This will permanently delete:
+                    <ul style="margin: 0.5rem 0 0 1.5rem;">
+                        <li><span id="deleteShops"></span> shop(s)</li>
+                        <li><span id="deleteProducts"></span> product(s)</li>
+                        <li>All associated data</li>
+                    </ul>
+                </div>
+            </div>
+            <div class="modal-buttons">
+                <button class="btn btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+                <button class="btn btn-confirm-delete" onclick="confirmDelete()">Delete Permanently</button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        let deleteVendorId = null;
+
         function updateVendorStatus(vendorId, newStatus) {
-            if (!confirm(`Are you sure you want to ${newStatus === 'approved' ? 'approve' : 'reject'} this vendor?`)) {
+            const action = newStatus === 'approved' ? 'approve' : (newStatus === 'rejected' ? 'reject' : 'update');
+            if (!confirm(`Are you sure you want to ${action} this vendor?`)) {
                 return;
             }
 
@@ -400,6 +567,53 @@ $conn->close();
                 console.error('Error:', error);
                 alert('An error occurred. Please try again.');
             });
+        }
+
+        function showDeleteModal(vendorId, vendorName, shopCount, productCount) {
+            deleteVendorId = vendorId;
+            document.getElementById('vendorName').textContent = vendorName;
+            document.getElementById('deleteShops').textContent = shopCount;
+            document.getElementById('deleteProducts').textContent = productCount;
+            document.getElementById('deleteModal').style.display = 'block';
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            deleteVendorId = null;
+        }
+
+        function confirmDelete() {
+            if (!deleteVendorId) return;
+
+            fetch('delete_vendor.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `vendor_id=${deleteVendorId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    closeDeleteModal();
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('deleteModal');
+            if (event.target == modal) {
+                closeDeleteModal();
+            }
         }
     </script>
 </body>
