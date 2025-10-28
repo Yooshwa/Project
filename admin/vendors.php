@@ -10,7 +10,6 @@ if ($_SESSION['role'] !== 'admin') {
 
 // Get user info
 $user_name = $_SESSION['name'];
-$user_email = $_SESSION['email'];
 
 // Get database connection
 require_once '../config/database.php';
@@ -446,7 +445,7 @@ $conn->close();
             width: 90%;
             max-width: 500px;
             box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
-            animation: slideDownModal 0.3s;
+            animation: slideDown 0.3s;
         }
 
         @keyframes fadeIn {
@@ -454,7 +453,7 @@ $conn->close();
             to { opacity: 1; }
         }
 
-        @keyframes slideDownModal {
+        @keyframes slideDown {
             from { transform: translateY(-50px); opacity: 0; }
             to { transform: translateY(0); opacity: 1; }
         }

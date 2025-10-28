@@ -32,13 +32,28 @@ $approved_vendors = $result->fetch_assoc()['count'];
 $result = $conn->query("SELECT COUNT(*) as count FROM Users WHERE role = 'customer'");
 $total_customers = $result->fetch_assoc()['count'];
 
-// Count total shops
+/* Count total shops
 $result = $conn->query("SELECT COUNT(*) as count FROM Shops");
 $total_shops = $result->fetch_assoc()['count'];
+*/
 
-// Count total products
+// Count total shops (ONLY from approved vendors)
+$result = $conn->query("SELECT COUNT(*) as count FROM Shops s 
+                        JOIN Vendors v ON s.vendor_id = v.vendor_id 
+                        WHERE v.status = 'approved'");
+$total_shops = $result->fetch_assoc()['count'];
+
+// Count total products (ONLY from approved vendors' shops)
+$result = $conn->query("SELECT COUNT(*) as count FROM Products p 
+                        JOIN Shops s ON p.shop_id = s.shop_id 
+                        JOIN Vendors v ON s.vendor_id = v.vendor_id 
+                        WHERE v.status = 'approved'");
+$total_products = $result->fetch_assoc()['count'];
+
+/* Count total products
 $result = $conn->query("SELECT COUNT(*) as count FROM Products");
 $total_products = $result->fetch_assoc()['count'];
+*/
 
 $conn->close();
 ?>
@@ -102,33 +117,129 @@ $conn->close();
         }
 
         .navbar-user {
+            position: relative;
+        }
+
+        .user-profile-btn {
             display: flex;
             align-items: center;
-            gap: 1rem;
-        }
-
-        .user-badge {
-            background: linear-gradient(135deg, #ff6b9dff 0%, #ff8fab 100%);
-            color: white;
+            gap: 0.5rem;
+            background: white;
+            border: 2px solid #ff6b9d;
+            color: #5a3e36;
             padding: 0.5rem 1rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        .logout-btn {
-            background: #ff6b9dff;
-            color: white;
-            padding: 0.5rem 1.5rem;
-            border-radius: 20px;
-            text-decoration: none;
-            font-size: 0.9rem;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
             transition: all 0.3s;
         }
 
-        .logout-btn:hover {
-            background: #7a5f57;
-            transform: translateY(-2px);
+        .user-profile-btn:hover {
+            background: #fff5f7;
+        }
+
+        .user-avatar {
+            width: 32px;
+            height: 32px;
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+
+        .dropdown-arrow {
+            font-size: 0.7rem;
+            transition: transform 0.3s;
+        }
+
+        .user-profile-btn.active .dropdown-arrow {
+            transform: rotate(180deg);
+        }
+
+        .user-dropdown {
+            position: absolute;
+            top: 100%;
+            right: 0;
+            margin-top: 0.5rem;
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.15);
+            min-width: 200px;
+            display: none;
+            z-index: 1000;
+        }
+
+        .user-dropdown.show {
+            display: block;
+            animation: slideDown 0.3s ease;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .dropdown-header {
+            padding: 1rem;
+            border-bottom: 1px solid #ffe8ec;
+        }
+
+        .dropdown-header p {
+            color: #5a3e36;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+
+        .dropdown-header span {
+            color: #7a5f57;
+            font-size: 0.85rem;
+        }
+
+        .user-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 15px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .dropdown-menu {
+            padding: 0.5rem 0;
+        }
+
+        .dropdown-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: #5a3e36;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+
+        .dropdown-item:hover {
+            background: #fff5f7;
+        }
+
+        .dropdown-item.logout {
+            color: #dc3545;
+        }
+
+        .dropdown-item.logout:hover {
+            background: #ffe8ec;
         }
 
         .container {
@@ -215,43 +326,6 @@ $conn->close();
             border-left: 4px solid #ff6b9d;
         }
 
-        .quick-actions {
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .quick-actions h2 {
-            color: #5a3e36;
-            margin-bottom: 1.5rem;
-        }
-
-        .action-buttons {
-            display: flex;
-            gap: 1rem;
-            flex-wrap: wrap;
-        }
-
-        .action-btn {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
-            color: white;
-            padding: 1rem 1.5rem;
-            border-radius: 10px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
-        }
-
-        .action-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(255, 107, 157, 0.4);
-        }
-
         .alert {
             background: #fff3cd;
             border-left: 4px solid #ffa500;
@@ -274,8 +348,23 @@ $conn->close();
             <li><a href="vendors.php">Manage Vendors</a></li>
         </ul>
         <div class="navbar-user">
-            <span class="user-badge">👨‍💼 <?php echo htmlspecialchars($user_name); ?></span>
-            <a href="../auth/logout.php" class="logout-btn">Logout</a>
+            <button class="user-profile-btn" onclick="toggleDropdown()">
+                <div class="user-avatar"><?php echo strtoupper(substr($user_name, 0, 1)); ?></div>
+                <span><?php echo htmlspecialchars($user_name); ?></span>
+                <span class="dropdown-arrow">▼</span>
+            </button>
+            <div class="user-dropdown" id="userDropdown">
+                <div class="dropdown-header">
+                    <p><?php echo htmlspecialchars($user_name); ?></p>
+                    <span><?php echo htmlspecialchars($user_email); ?></span>
+                    <div class="user-badge">👨‍💼 ADMIN</div>
+                </div>
+                <div class="dropdown-menu">
+                    <a href="../auth/logout.php" class="dropdown-item logout">
+                        <span>🚪</span> Logout
+                    </a>
+                </div>
+            </div>
         </div>
     </nav>
 
@@ -334,15 +423,26 @@ $conn->close();
                 </div>
             </div>
         </div>
-
-        <div class="quick-actions">
-            <h2>Quick Actions</h2>
-            <div class="action-buttons">
-                <a href="vendors.php" class="action-btn">
-                    👥 Manage Vendors
-                </a>
-            </div>
-        </div>
     </div>
+
+    <script>
+        function toggleDropdown() {
+            const dropdown = document.getElementById('userDropdown');
+            const button = document.querySelector('.user-profile-btn');
+            dropdown.classList.toggle('show');
+            button.classList.toggle('active');
+        }
+
+        // Close dropdown when clicking outside
+        window.addEventListener('click', function(e) {
+            const dropdown = document.getElementById('userDropdown');
+            const button = document.querySelector('.user-profile-btn');
+            
+            if (!button.contains(e.target) && !dropdown.contains(e.target)) {
+                dropdown.classList.remove('show');
+                button.classList.remove('active');
+            }
+        });
+    </script>
 </body>
 </html>
