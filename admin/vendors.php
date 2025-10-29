@@ -10,6 +10,7 @@ if ($_SESSION['role'] !== 'admin') {
 
 // Get user info
 $user_name = $_SESSION['name'];
+$user_email = $_SESSION['email'];
 
 // Get database connection
 require_once '../config/database.php';
@@ -90,6 +91,7 @@ $conn->close();
             font-size: 1.5rem;
             font-weight: bold;
             color: #ff6b9d;
+            text-decoration: none;
         }
 
         .navbar-menu {
@@ -453,11 +455,6 @@ $conn->close();
             to { opacity: 1; }
         }
 
-        @keyframes slideDown {
-            from { transform: translateY(-50px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-        }
-
         .modal-header {
             color: #5a3e36;
             font-size: 1.5rem;
@@ -505,7 +502,7 @@ $conn->close();
 </head>
 <body>
     <nav class="navbar">
-        <div class="navbar-brand">🧁 Sweetkart Admin</div>
+        <a href="dashboard.php" class="navbar-brand">🧁 Sweetkart Admin</a>
         <ul class="navbar-menu">
             <li><a href="dashboard.php">Dashboard</a></li>
             <li><a href="vendors.php" class="active">Manage Vendors</a></li>
@@ -533,7 +530,7 @@ $conn->close();
 
     <div class="container">
         <div class="page-header">
-            <h1>👥 Vendor Management</h1>
+            <h1>Vendor Management</h1>
             <p>Approve, reject, or manage vendor accounts</p>
         </div>
 
@@ -561,7 +558,7 @@ $conn->close();
                             <small style="color: #7a5f57;">ID: <?php echo $vendor['vendor_id']; ?></small>
                         </td>
                         <td>
-                            <span class="shop-count">🏪 <?php echo $vendor['total_shops']; ?> Shop(s)</span>
+                            <span class="shop-count">🪙 <?php echo $vendor['total_shops']; ?> Shop(s)</span>
                             <?php if (count($vendor['shop_names']) > 0): ?>
                                 <br>
                                 <span class="shop-names-small">
