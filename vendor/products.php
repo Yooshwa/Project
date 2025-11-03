@@ -437,14 +437,6 @@ $conn->close();
             font-size: 0.85rem;
         }
 
-        .customizable-badge {
-            background: #ff6b9d;
-            color: white;
-            padding: 0.3rem 0.6rem;
-            border-radius: 12px;
-            font-size: 0.75rem;
-        }
-
         .action-buttons {
             display: flex;
             gap: 0.5rem;
@@ -680,9 +672,6 @@ $conn->close();
                         </td>
                         <td>
                             <strong><?php echo htmlspecialchars($product['product_name']); ?></strong>
-                            <?php if ($product['customizable']): ?>
-                                <br><span class="customizable-badge">✨ Customizable</span>
-                            <?php endif; ?>
                         </td>
                         <td><?php echo htmlspecialchars($product['shop_name']); ?></td>
                         <td><span class="category-badge"><?php echo htmlspecialchars($product['category_name']); ?></span></td>

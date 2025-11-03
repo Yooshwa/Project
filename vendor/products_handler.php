@@ -70,7 +70,7 @@ function addProduct($conn, $vendor_id) {
     $price = $_POST['price'] ?? '';
     $quantity = $_POST['quantity'] ?? '';
     $description = $_POST['description'] ?? '';
-    $customizable = isset($_POST['customizable']) ? 1 : 0;
+    $customizable = 0;
     
     // Validate required fields
     if (empty($shop_id) || empty($product_name) || empty($category_id) || empty($price) || empty($quantity)) {
@@ -122,7 +122,7 @@ function editProduct($conn, $vendor_id) {
     $quantity = $_POST['quantity'] ?? '';
     $description = $_POST['description'] ?? '';
     $current_image = $_POST['current_image'] ?? '';
-    $customizable = isset($_POST['customizable']) ? 1 : 0; 
+    $customizable = 0; 
     // Validate required fields
     if (empty($product_id) || empty($shop_id) || empty($product_name) || empty($category_id) || empty($price) || empty($quantity)) {
         echo json_encode(['success' => false, 'message' => 'Please fill all required fields']);

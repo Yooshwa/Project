@@ -370,7 +370,7 @@ $conn->close();
 
     <div class="container">
         <div class="welcome-section">
-            <h1>👋 Welcome back, <?php echo htmlspecialchars($user_name); ?>!</h1>
+            <h1>Welcome back, <?php echo htmlspecialchars($user_name); ?>!</h1>
             <p>Here's what's happening with your platform today</p>
         </div>
 

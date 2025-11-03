@@ -2,8 +2,8 @@
 // Start session and check authentication
 require_once '../config/auth_check.php';
 
-// Check if user is customer
-if ($_SESSION['role'] !== 'customer') {
+// Check if user is vendor
+if ($_SESSION['role'] !== 'vendor') {
     header("Location: ../index.php");
     exit;
 }
@@ -17,51 +17,89 @@ $user_id = $_SESSION['user_id'];
 require_once '../config/database.php';
 $conn = getDBConnection();
 
-// Get customer statistics
-$total_orders = 0;
-$pending_orders = 0;
-$completed_orders = 0;
+// Get vendor information
+$stmt = $conn->prepare("SELECT vendor_id, status FROM Vendors WHERE user_id = ?");
+$stmt->bind_param("i", $user_id);
+$stmt->execute();
+$result = $stmt->get_result();
+$vendor = $result->fetch_assoc();
+$stmt->close();
 
-// Count total orders
-$result = $conn->query("SELECT COUNT(*) as count FROM Orders WHERE user_id = $user_id");
-$total_orders = $result->fetch_assoc()['count'];
+if (!$vendor || $vendor['status'] !== 'approved') {
+    header("Location: dashboard.php");
+    exit;
+}
 
-// Count pending orders
-$result = $conn->query("SELECT COUNT(*) as count FROM Orders WHERE user_id = $user_id AND status = 'pending'");
-$pending_orders = $result->fetch_assoc()['count'];
+$vendor_id = $vendor['vendor_id'];
 
-// Count completed orders
-$result = $conn->query("SELECT COUNT(*) as count FROM Orders WHERE user_id = $user_id AND status = 'completed'");
-$completed_orders = $result->fetch_assoc()['count'];
+// Get filter parameter
+$filter_shop = $_GET['shop'] ?? 'all';
 
-// Get recent orders (last 5)
-$recent_orders_query = "SELECT 
-    o.order_id,
-    o.total_amount,
-    o.status,
-    o.order_date,
-    COUNT(oi.order_item_id) as item_count
-FROM Orders o
-LEFT JOIN Order_Items oi ON o.order_id = oi.order_id
-WHERE o.user_id = $user_id
-GROUP BY o.order_id, o.total_amount, o.status, o.order_date
-ORDER BY o.order_date DESC
-LIMIT 5";
+// Get all shops for this vendor (for filter dropdown and stats)
+$shops_query = "SELECT 
+    s.shop_id, 
+    s.shop_name,
+    COUNT(f.feedback_id) as feedback_count,
+    AVG(f.rating) as avg_rating
+FROM Shops s
+LEFT JOIN Feedback f ON s.shop_id = f.shop_id
+WHERE s.vendor_id = $vendor_id
+GROUP BY s.shop_id, s.shop_name
+ORDER BY s.shop_name";
 
-$result = $conn->query($recent_orders_query);
-$recent_orders = [];
+$shops_result = $conn->query($shops_query);
+$shops = [];
+while ($row = $shops_result->fetch_assoc()) {
+    $shops[] = $row;
+}
+
+// Get all feedback for vendor's shops
+$feedback_query = "SELECT 
+    f.feedback_id,
+    f.rating,
+    f.comment,
+    f.created_at,
+    u.name as customer_name,
+    s.shop_id,
+    s.shop_name
+FROM Feedback f
+JOIN Users u ON f.user_id = u.user_id
+JOIN Shops s ON f.shop_id = s.shop_id
+WHERE s.vendor_id = $vendor_id";
+
+if ($filter_shop !== 'all') {
+    $feedback_query .= " AND s.shop_id = " . intval($filter_shop);
+}
+
+$feedback_query .= " ORDER BY f.created_at DESC";
+
+$result = $conn->query($feedback_query);
+$feedbacks = [];
 while ($row = $result->fetch_assoc()) {
-    $recent_orders[] = $row;
+    $feedbacks[] = $row;
 }
 
 $conn->close();
+
+// Helper function to generate star display
+function getStarDisplay($rating) {
+    $stars = '';
+    for ($i = 1; $i <= 5; $i++) {
+        if ($i <= $rating) {
+            $stars .= '⭐';
+        } else {
+            $stars .= '☆';
+        }
+    }
+    return $stars;
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customer Dashboard - Sweetkart</title>
+    <title>Feedback - Sweetkart Vendor</title>
     <style>
         * {
             margin: 0;
@@ -243,12 +281,12 @@ $conn->close();
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 2rem auto;
             padding: 0 2rem;
         }
 
-        .welcome-section {
+        .page-header {
             background: white;
             padding: 2rem;
             border-radius: 15px;
@@ -256,18 +294,39 @@ $conn->close();
             margin-bottom: 2rem;
         }
 
-        .welcome-section h1 {
+        .page-header h1 {
             color: #5a3e36;
             font-size: 2rem;
-            margin-bottom: 0.5rem;
+            margin-bottom: 1rem;
         }
 
-        .welcome-section p {
-            color: #7a5f57;
-            font-size: 1.1rem;
+        .filter-section {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
         }
 
-        .stats-grid {
+        .filter-section label {
+            color: #5a3e36;
+            font-weight: 600;
+        }
+
+        .filter-section select {
+            padding: 0.5rem 1rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            color: #5a3e36;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .filter-section select:focus {
+            outline: none;
+            border-color: #ff6b9d;
+        }
+
+        .shop-stats {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
             gap: 1.5rem;
@@ -279,183 +338,129 @@ $conn->close();
             padding: 1.5rem;
             border-radius: 15px;
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-            display: flex;
-            align-items: center;
-            gap: 1rem;
             transition: transform 0.3s;
         }
 
         .stat-card:hover {
-            transform: translateY(-5px);
+            transform: translateY(-3px);
         }
 
-        .stat-icon {
-            font-size: 3rem;
+        .stat-card h3 {
+            color: #5a3e36;
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
         }
 
-        .stat-info h3 {
-            color: #7a5f57;
-            font-size: 0.9rem;
-            font-weight: 500;
+        .rating-display {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
             margin-bottom: 0.5rem;
         }
 
-        .stat-info .stat-number {
-            color: #5a3e36;
-            font-size: 2rem;
-            font-weight: bold;
+        .stars {
+            font-size: 1.5rem;
         }
 
-        .stat-card.total {
-            border-left: 4px solid #2196f3;
-        }
-
-        .stat-card.pending {
-            border-left: 4px solid #ffa500;
-        }
-
-        .stat-card.completed {
-            border-left: 4px solid #4caf50;
-        }
-
-        .quick-actions {
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-            margin-bottom: 2rem;
-        }
-
-        .quick-actions h2 {
-            color: #5a3e36;
-            margin-bottom: 1.5rem;
-        }
-
-        .action-buttons {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-
-        .action-btn {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.5rem;
-            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
-            color: white;
-            padding: 1.5rem;
-            border-radius: 10px;
-            text-decoration: none;
+        .rating-number {
+            color: #ff6b9d;
             font-weight: 600;
-            transition: all 0.3s;
-            box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
+            font-size: 1.3rem;
         }
 
-        .action-btn:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(255, 107, 157, 0.4);
-        }
-
-        .action-btn-icon {
-            font-size: 2rem;
-        }
-
-        .recent-orders {
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .recent-orders h2 {
-            color: #5a3e36;
-            margin-bottom: 1.5rem;
-        }
-
-        .order-list {
-            display: grid;
-            gap: 1rem;
-        }
-
-        .order-item {
-            background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 10px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            transition: all 0.3s;
-        }
-
-        .order-item:hover {
-            background: #fff5f7;
-        }
-
-        .order-info {
-            flex: 1;
-        }
-
-        .order-id {
-            color: #5a3e36;
-            font-weight: 600;
-            margin-bottom: 0.25rem;
-        }
-
-        .order-details {
+        .feedback-count {
             color: #7a5f57;
             font-size: 0.9rem;
         }
 
-        .order-amount {
-            color: #ff6b9d;
-            font-weight: 600;
-            font-size: 1.1rem;
-            margin-right: 1rem;
+        .feedback-container {
+            display: grid;
+            gap: 1.5rem;
         }
 
-        .status-badge {
-            padding: 0.4rem 0.8rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
+        .feedback-card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            padding: 1.5rem;
+            transition: transform 0.3s;
         }
 
-        .status-pending {
-            background: #fff3cd;
-            color: #856404;
+        .feedback-card:hover {
+            transform: translateY(-3px);
         }
 
-        .status-processing {
-            background: #cce5ff;
-            color: #004085;
-        }
-
-        .status-completed {
-            background: #d4edda;
-            color: #155724;
-        }
-
-        .no-orders {
-            text-align: center;
-            padding: 2rem;
-            color: #7a5f57;
-        }
-
-        .no-orders-icon {
-            font-size: 3rem;
+        .feedback-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
             margin-bottom: 1rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #ffe8ec;
+        }
+
+        .customer-info h4 {
+            color: #5a3e36;
+            font-size: 1.1rem;
+            margin-bottom: 0.3rem;
+        }
+
+        .shop-tag {
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 0.3rem 0.8rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+        }
+
+        .rating-stars {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .feedback-comment {
+            color: #5a3e36;
+            line-height: 1.6;
+            margin-bottom: 1rem;
+        }
+
+        .feedback-date {
+            color: #7a5f57;
+            font-size: 0.85rem;
+        }
+
+        .no-feedback {
+            background: white;
+            padding: 3rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .no-feedback-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        .no-feedback h3 {
+            color: #5a3e36;
+            margin-bottom: 0.5rem;
+        }
+
+        .no-feedback p {
+            color: #7a5f57;
         }
     </style>
 </head>
 <body>
     <nav class="navbar">
-        <a href="dashboard.php" class="navbar-brand">🧁 Sweetkart</a>
+        <a href="dashboard.php" class="navbar-brand">🧁 Sweetkart Vendor</a>
         <ul class="navbar-menu">
-            <li><a href="dashboard.php" class="active">Dashboard</a></li>
-            <li><a href="shops.php">Browse Shops</a></li>
-            <li><a href="cart.php">🛒 Cart</a></li>
-            <li><a href="orders.php">My Orders</a></li>
+            <li><a href="dashboard.php">Dashboard</a></li>
+            <li><a href="shops.php">My Shops</a></li>
+            <li><a href="products.php">Products</a></li>
+            <li><a href="orders.php">Orders</a></li>
+            <li><a href="feedback.php" class="active">Feedback</a></li>
         </ul>
         <div class="navbar-user">
             <button class="user-profile-btn" onclick="toggleDropdown()">
@@ -467,7 +472,7 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">🛒 CUSTOMER</div>
+                    <div class="user-badge">🪙 VENDOR</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
@@ -479,79 +484,64 @@ $conn->close();
     </nav>
 
     <div class="container">
-        <div class="welcome-section">
-            <h1>👋 Welcome back, <?php echo htmlspecialchars($user_name); ?>!</h1>
-            <p>Ready to order some delicious treats?</p>
-        </div>
-
-        <div class="stats-grid">
-            <div class="stat-card total">
-                <div class="stat-icon">📦</div>
-                <div class="stat-info">
-                    <h3>Total Orders</h3>
-                    <div class="stat-number"><?php echo $total_orders; ?></div>
-                </div>
-            </div>
-
-            <div class="stat-card pending">
-                <div class="stat-icon">⏳</div>
-                <div class="stat-info">
-                    <h3>Pending Orders</h3>
-                    <div class="stat-number"><?php echo $pending_orders; ?></div>
-                </div>
-            </div>
-
-            <div class="stat-card completed">
-                <div class="stat-icon">✅</div>
-                <div class="stat-info">
-                    <h3>Completed Orders</h3>
-                    <div class="stat-number"><?php echo $completed_orders; ?></div>
-                </div>
+        <div class="page-header">
+            <h1>⭐ Customer Feedback</h1>
+            <div class="filter-section">
+                <label for="shopFilter">Filter by Shop:</label>
+                <select id="shopFilter" onchange="filterByShop()">
+                    <option value="all" <?php echo $filter_shop === 'all' ? 'selected' : ''; ?>>All Shops</option>
+                    <?php foreach ($shops as $shop): ?>
+                    <option value="<?php echo $shop['shop_id']; ?>" <?php echo $filter_shop == $shop['shop_id'] ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($shop['shop_name']); ?>
+                    </option>
+                    <?php endforeach; ?>
+                </select>
             </div>
         </div>
 
-        <div class="quick-actions">
-            <h2>Quick Actions</h2>
-            <div class="action-buttons">
-                <a href="shops.php" class="action-btn">
-                    <span class="action-btn-icon">🏪</span>
-                    <span>Browse Shops</span>
-                </a>
-                <a href="cart.php" class="action-btn">
-                    <span class="action-btn-icon">🛒</span>
-                    <span>View Cart</span>
-                </a>
-                <a href="orders.php" class="action-btn">
-                    <span class="action-btn-icon">📦</span>
-                    <span>My Orders</span>
-                </a>
+        <?php if (count($shops) > 0): ?>
+        <div class="shop-stats">
+            <?php foreach ($shops as $shop): ?>
+            <div class="stat-card">
+                <h3>🏪 <?php echo htmlspecialchars($shop['shop_name']); ?></h3>
+                <div class="rating-display">
+                    <span class="stars"><?php echo getStarDisplay($shop['avg_rating'] ? round($shop['avg_rating']) : 0); ?></span>
+                    <span class="rating-number"><?php echo $shop['avg_rating'] ? number_format($shop['avg_rating'], 1) : 'No ratings'; ?></span>
+                </div>
+                <div class="feedback-count">
+                    <?php echo $shop['feedback_count']; ?> review<?php echo $shop['feedback_count'] != 1 ? 's' : ''; ?>
+                </div>
             </div>
+            <?php endforeach; ?>
         </div>
+        <?php endif; ?>
 
-        <div class="recent-orders">
-            <h2>Recent Orders</h2>
-            <?php if (count($recent_orders) > 0): ?>
-            <div class="order-list">
-                <?php foreach ($recent_orders as $order): ?>
-                <div class="order-item">
-                    <div class="order-info">
-                        <div class="order-id">Order #<?php echo $order['order_id']; ?></div>
-                        <div class="order-details">
-                            <?php echo $order['item_count']; ?> item(s) • 
-                            <?php echo date('M d, Y', strtotime($order['order_date'])); ?>
+        <div class="feedback-container">
+            <?php if (count($feedbacks) > 0): ?>
+                <?php foreach ($feedbacks as $feedback): ?>
+                <div class="feedback-card">
+                    <div class="feedback-header">
+                        <div class="customer-info">
+                            <h4>👤 <?php echo htmlspecialchars($feedback['customer_name']); ?></h4>
+                            <span class="shop-tag">🏪 <?php echo htmlspecialchars($feedback['shop_name']); ?></span>
                         </div>
+                        <div class="rating-stars"><?php echo getStarDisplay($feedback['rating']); ?></div>
                     </div>
-                    <div class="order-amount">₹<?php echo number_format($order['total_amount'], 2); ?></div>
-                    <span class="status-badge status-<?php echo $order['status']; ?>">
-                        <?php echo ucfirst($order['status']); ?>
-                    </span>
+                    <?php if (!empty($feedback['comment'])): ?>
+                    <div class="feedback-comment">
+                        "<?php echo htmlspecialchars($feedback['comment']); ?>"
+                    </div>
+                    <?php endif; ?>
+                    <div class="feedback-date">
+                        📅 <?php echo date('M d, Y - h:i A', strtotime($feedback['created_at'])); ?>
+                    </div>
                 </div>
                 <?php endforeach; ?>
-            </div>
             <?php else: ?>
-            <div class="no-orders">
-                <div class="no-orders-icon">📦</div>
-                <p>No orders yet. Start shopping to see your orders here!</p>
+            <div class="no-feedback">
+                <div class="no-feedback-icon">⭐</div>
+                <h3>No Feedback Yet</h3>
+                <p>Customer reviews and ratings will appear here</p>
             </div>
             <?php endif; ?>
         </div>
@@ -574,6 +564,11 @@ $conn->close();
                 button.classList.remove('active');
             }
         });
+
+        function filterByShop() {
+            const shopId = document.getElementById('shopFilter').value;
+            window.location.href = `feedback.php?shop=${shopId}`;
+        }
     </script>
 </body>
 </html>
