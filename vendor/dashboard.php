@@ -425,7 +425,7 @@ $conn->close();
 </head>
 <body>
     <nav class="navbar">
-        <a href="dashboard.php" class="navbar-brand">🧁 Sweetkart Vendor</a>
+        <a href="dashboard.php" class="navbar-brand">Sweetkart Vendor</a>
         <ul class="navbar-menu">
             <li><a href="dashboard.php" class="active">Dashboard</a></li>
             <?php if ($vendor_status === 'approved'): ?>
@@ -448,11 +448,11 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">🏪 VENDOR</div>
+                    <div class="user-badge">⚪ VENDOR</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
-                        <span>🚪</span> Logout
+                        <span>➜</span> Logout
                     </a>
                 </div>
             </div>
@@ -476,7 +476,7 @@ $conn->close();
             </div>
         <?php else: ?>
             <div class="welcome-section">
-                <h1>👋 Welcome back, <?php echo htmlspecialchars($user_name); ?>!</h1>
+                <h1>Welcome back, <?php echo htmlspecialchars($user_name); ?>!</h1>
                 <p>Manage your shops, products, and orders from your dashboard
                 <?php if ($custom_cake_enabled): ?>
                     <span class="custom-cake-badge">🎂 Custom Cakes Enabled</span>

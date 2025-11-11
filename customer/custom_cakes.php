@@ -1,42 +1,48 @@
 <?php
 /*
- * CUSTOM CAKE REQUEST PAGE
- * Purpose: Allow customers to request custom cakes from vendors
- * Features: Request form, image upload, request history, status tracking
+ * CUSTOM CAKE REQUEST PAGE - UPDATED
+ * Purpose: Display shops offering custom cakes with fixed pricing
+ * Features: Shop cards, fixed-price order form, request history
  */
 
 require_once '../config/auth_check.php';
 
-// Only customers can access
 if ($_SESSION['role'] !== 'customer') {
     header("Location: ../index.php");
     exit;
 }
 
-// Get user info
 $user_name = $_SESSION['name'];
 $user_email = $_SESSION['email'];
 $user_id = $_SESSION['user_id'];
 
-// Get database connection
 require_once '../config/database.php';
 $conn = getDBConnection();
 
-// Get shops that offer custom cakes (from approved vendors only)
+// Get customer phone number
+$user_query = "SELECT phone_no FROM Users WHERE user_id = $user_id";
+$user_result = $conn->query($user_query);
+$user_data = $user_result->fetch_assoc();
+$user_phone = $user_data['phone_no'] ?? '';
+
+// Get ONLY shops that offer custom cakes
 $shops_query = "SELECT 
     s.shop_id,
     s.shop_name,
     s.address,
-    u.name as vendor_name
+    u.name as vendor_name,
+    COUNT(DISTINCT f.feedback_id) as review_count,
+    IFNULL(AVG(f.rating), 0) as avg_rating
 FROM Shops s
 JOIN Vendors v ON s.vendor_id = v.vendor_id
 JOIN Users u ON v.user_id = u.user_id
+LEFT JOIN Feedback f ON s.shop_id = f.shop_id
 WHERE v.status = 'approved' AND v.custom_cake_flag = 1
+GROUP BY s.shop_id, s.shop_name, s.address, u.name
 ORDER BY s.shop_name ASC";
 
 $shops_result = $conn->query($shops_query);
 $custom_shops = [];
-
 while ($shop = $shops_result->fetch_assoc()) {
     $custom_shops[] = $shop;
 }
@@ -50,15 +56,11 @@ $requests_query = "SELECT
     cco.weight,
     cco.layers,
     cco.description,
-    cco.reference_image,
-    cco.special_instructions,
     cco.delivery_date,
-    cco.estimated_price,
     cco.final_price,
     cco.status,
     cco.created_at,
-    s.shop_name,
-    s.shop_id
+    s.shop_name
 FROM Custom_Cake_Orders cco
 JOIN Shops s ON cco.shop_id = s.shop_id
 WHERE cco.user_id = $user_id
@@ -66,12 +68,11 @@ ORDER BY cco.created_at DESC";
 
 $requests_result = $conn->query($requests_query);
 $requests = [];
-
 while ($request = $requests_result->fetch_assoc()) {
     $requests[] = $request;
 }
 
-// Get cart count for badge
+// Get cart count
 $cart_query = "SELECT IFNULL(SUM(quantity), 0) as cart_count FROM Cart WHERE user_id = $user_id";
 $cart_result = $conn->query($cart_query);
 $cart_count = $cart_result->fetch_assoc()['cart_count'];
@@ -97,7 +98,6 @@ $conn->close();
             min-height: 100vh;
         }
 
-        /* Navbar styles */
         .navbar {
             background: white;
             padding: 1rem 5%;
@@ -175,10 +175,6 @@ $conn->close();
             transition: all 0.3s;
         }
 
-        .user-profile-btn:hover {
-            background: #fff5f7;
-        }
-
         .user-avatar {
             width: 32px;
             height: 32px;
@@ -216,18 +212,6 @@ $conn->close();
 
         .user-dropdown.show {
             display: block;
-            animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
 
         .dropdown-header {
@@ -295,37 +279,328 @@ $conn->close();
             border-radius: 15px;
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
             margin-bottom: 2rem;
+            text-align: center;
         }
 
         .page-header h1 {
             color: #5a3e36;
-            font-size: 2rem;
+            font-size: 2.5rem;
             margin-bottom: 0.5rem;
         }
+
         .page-header p {
             color: #7a5f57;
-        }
-        .content-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 2rem;
-        }
-        /* Request Form Section */
-        .form-section {
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            font-size: 1.1rem;
         }
 
-        .section-title {
+        /* Tabs */
+        .tabs-container {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+            margin-bottom: 2rem;
+        }
+
+        .tabs-header {
+            display: flex;
+            border-bottom: 2px solid #ffe8ec;
+            background: #fff5f7;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 1.5rem 2rem;
+            background: transparent;
+            border: none;
+            color: #7a5f57;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .tab-button:hover {
+            background: rgba(255, 107, 157, 0.05);
+            color: #ff6b9d;
+        }
+
+        .tab-button.active {
+            color: #ff6b9d;
+            background: white;
+            border-bottom-color: #ff6b9d;
+        }
+
+        .tab-badge {
+            background: #ff6b9d;
+            color: white;
+            padding: 0.25rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 700;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .tab-button.active .tab-badge {
+            background: #ff8fab;
+        }
+
+        .tab-content {
+            display: none;
+            padding: 2rem;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .shops-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+            gap: 2rem;
+            margin-bottom: 3rem;
+        }
+
+        .shop-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            transition: all 0.3s;
+        }
+
+        .shop-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+        }
+
+        .shop-image {
+            width: 100%;
+            height: 200px;
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        .shop-logo {
+            width: 80px;
+            height: 80px;
+            background: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        }
+
+        .shop-body {
+            padding: 1.5rem;
+        }
+
+        .shop-name {
             color: #5a3e36;
             font-size: 1.5rem;
-            font-weight: 600;
-            margin-bottom: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .shop-rating {
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .stars {
+            display: flex;
+            gap: 0.1rem;
+        }
+
+        .star {
+            color: #ffa500;
+            font-size: 1rem;
+        }
+
+        .star.empty {
+            color: #ddd;
+        }
+
+        .rating-text {
+            color: #5a3e36;
+            font-weight: 600;
+            font-size: 0.95rem;
+        }
+
+        .shop-description {
+            color: #7a5f57;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+            min-height: 48px;
+        }
+
+        .shop-actions {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-view {
+            background: white;
+            color: #ff6b9d;
+            border: 2px solid #ff6b9d;
+        }
+
+        .btn-view:hover {
+            background: #fff5f7;
+        }
+
+        .btn-order {
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+            color: white;
+        }
+
+        .btn-order:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
+        }
+
+        .no-shops {
+            background: white;
+            padding: 3rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .no-shops-icon {
+            font-size: 5rem;
+            margin-bottom: 1rem;
+        }
+
+        .no-shops h3 {
+            color: #5a3e36;
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .no-shops p {
+            color: #7a5f57;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            overflow-y: auto;
+            padding: 2rem 0;
+        }
+
+        .modal-content {
+            background: white;
+            margin: 0 auto;
+            padding: 0;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 800px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideIn 0.3s ease;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-50px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .modal-header {
+            background: #fff5f7;
+            padding: 2rem;
+            border-bottom: 2px solid #ffe8ec;
+            text-align: center;
+            border-radius: 15px 15px 0 0;
+        }
+
+        .modal-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2.5rem;
+            margin: 0 auto 1rem;
+        }
+
+        .modal-title {
+            color: #5a3e36;
+            font-size: 1.8rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+
+        .modal-subtitle {
+            color: #7a5f57;
+            font-size: 1rem;
+        }
+
+        .modal-body {
+            padding: 2rem;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
         }
 
         .form-group {
@@ -337,10 +612,7 @@ $conn->close();
             color: #5a3e36;
             font-weight: 600;
             margin-bottom: 0.5rem;
-        }
-
-        .required {
-            color: #f44336;
+            font-size: 0.95rem;
         }
 
         .form-group input,
@@ -368,17 +640,11 @@ $conn->close();
             min-height: 100px;
         }
 
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 1rem;
-        }
-
-        .file-upload {
+        .file-upload-wrapper {
             position: relative;
         }
 
-        .file-upload input[type="file"] {
+        .file-upload-wrapper input[type="file"] {
             display: none;
         }
 
@@ -399,7 +665,6 @@ $conn->close();
 
         .file-upload-label:hover {
             background: #ffe8ec;
-            border-color: #ff8fab;
         }
 
         .image-preview {
@@ -410,31 +675,68 @@ $conn->close();
             display: none;
         }
 
-        .no-shops-message {
-            background: #fff3cd;
-            color: #856404;
-            padding: 1rem;
-            border-radius: 8px;
-            border-left: 4px solid #ffa500;
-            margin-bottom: 1rem;
+        .price-display {
+            background: #fff5f7;
+            padding: 1.5rem;
+            border-radius: 10px;
+            border: 2px solid #ff6b9d;
+            text-align: center;
+            margin-top: 1rem;
         }
 
-        .btn-submit {
-            width: 100%;
+        .price-label {
+            color: #7a5f57;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .price-value {
+            color: #ff6b9d;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .modal-footer {
+            padding: 1.5rem 2rem;
+            background: #f8f9fa;
+            border-top: 2px solid #ffe8ec;
+            display: flex;
+            gap: 1rem;
+            border-radius: 0 0 15px 15px;
+        }
+
+        .btn-cancel {
+            flex: 1;
             padding: 1rem;
-            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+            background: #6c757d;
             color: white;
             border: none;
-            border-radius: 10px;
-            font-size: 1.1rem;
+            border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
         }
 
+        .btn-cancel:hover {
+            background: #5a6268;
+        }
+
+        .btn-submit {
+            flex: 2;
+            padding: 1rem;
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-size: 1.1rem;
+        }
+
         .btn-submit:hover {
-            transform: translateY(-3px);
-            box-shadow: 0 6px 20px rgba(255, 107, 157, 0.4);
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
         }
 
         .btn-submit:disabled {
@@ -443,41 +745,30 @@ $conn->close();
             transform: none;
         }
 
-        /* Requests List Section */
         .requests-section {
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-            max-height: 800px;
-            overflow-y: auto;
+            margin-top: 3rem;
         }
 
-        .request-card {
-            border: 2px solid #ffe8ec;
-            border-radius: 12px;
-            padding: 1.5rem;
-            margin-bottom: 1rem;
-            transition: all 0.3s;
-        }
-
-        .request-card:hover {
-            border-color: #ff6b9d;
-            box-shadow: 0 4px 15px rgba(255, 107, 157, 0.1);
-        }
-
-        .request-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 1rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid #ffe8ec;
-        }
-
-        .request-id {
+        .section-title {
             color: #5a3e36;
-            font-weight: 600;
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        table {
+            width: 100%;
+        }
+
+        @media (max-width: 768px) {
+            table {
+                font-size: 0.85rem;
+            }
+
+            th, td {
+                padding: 0.5rem !important;
+            }
         }
 
         .status-badge {
@@ -490,130 +781,101 @@ $conn->close();
         .status-pending {
             background: #fff3cd;
             color: #856404;
-        }
-
-        .status-quoted {
-            background: #cfe2ff;
-            color: #084298;
+            display: inline-block;
         }
 
         .status-confirmed {
             background: #d1e7dd;
             color: #0f5132;
+            display: inline-block;
         }
 
         .status-in_progress {
             background: #e3f2fd;
             color: #1976d2;
+            display: inline-block;
         }
 
         .status-completed {
             background: #d1e7dd;
             color: #0f5132;
+            display: inline-block;
         }
 
         .status-cancelled {
             background: #f8d7da;
             color: #842029;
-        }
-
-        .request-details {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 0.75rem;
-        }
-
-        .detail-item {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .detail-label {
-            color: #7a5f57;
-            font-size: 0.85rem;
-            margin-bottom: 0.25rem;
-        }
-
-        .detail-value {
-            color: #5a3e36;
-            font-weight: 600;
-        }
-
-        .request-description {
-            margin-top: 1rem;
-            padding-top: 1rem;
-            border-top: 1px solid #ffe8ec;
-        }
-
-        .request-description p {
-            color: #5a3e36;
-            line-height: 1.6;
-        }
-
-        .price-section {
-            margin-top: 1rem;
-            padding: 1rem;
-            background: #fff5f7;
-            border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .price-label {
-            color: #7a5f57;
-            font-weight: 500;
-        }
-
-        .price-value {
-            color: #ff6b9d;
-            font-size: 1.3rem;
-            font-weight: bold;
-        }
-
-        .no-requests {
-            text-align: center;
-            padding: 2rem;
-            color: #7a5f57;
-        }
-
-        .no-requests-icon {
-            font-size: 3rem;
-            margin-bottom: 1rem;
-        }
-
-        @media (max-width: 1024px) {
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .requests-section {
-                max-height: none;
-            }
+            display: inline-block;
         }
 
         @media (max-width: 768px) {
+            .shops-grid {
+                grid-template-columns: 1fr;
+            }
+
             .form-row {
                 grid-template-columns: 1fr;
             }
 
-            .request-details {
-                grid-template-columns: 1fr;
+            .modal-content {
+                width: 95%;
+            }
+
+            .tabs-header {
+                flex-direction: column;
+            }
+
+            .tab-button {
+                padding: 1rem;
+                font-size: 1rem;
+            }
+
+            .tab-content {
+                padding: 1rem;
+            }
+
+            table, thead, tbody, th, td, tr {
+                display: block;
+            }
+
+            thead tr {
+                display: none;
+            }
+
+            tr {
+                margin-bottom: 1rem;
+                border: 1px solid #ffe8ec !important;
+                border-radius: 8px;
+                padding: 0.5rem !important;
+            }
+
+            td {
+                text-align: right;
+                padding-left: 50%;
+                position: relative;
+            }
+
+            td:before {
+                content: attr(data-label);
+                position: absolute;
+                left: 0.5rem;
+                font-weight: bold;
+                color: #5a3e36;
             }
         }
     </style>
 </head>
 <body>
     <nav class="navbar">
-        <a href="products.php" class="navbar-brand">🧁 Sweetkart</a>
+        <a href="products.php" class="navbar-brand"> Sweetkart</a>
         <ul class="navbar-menu">
-            <li><a href="products.php">🧁 Products</a></li>
-            <li><a href="shops.php">🪙 Shops</a></li>
-            <li><a href="custom_cakes.php" class="active">🎂 Custom Cakes</a></li>
-            <li><a href="orders.php">📦 Orders</a></li>
+            <li><a href="products.php"> Products</a></li>
+            <li><a href="shops.php"> Shops</a></li>
+            <li><a href="custom_cakes.php" class="active"> Custom Cakes</a></li>
+            <li><a href="orders.php"> Orders</a></li>
             <li>
                 <a href="cart.php">
-                    🛒 Cart
+                    Cart
                     <?php if ($cart_count > 0): ?>
                     <span class="cart-badge"><?php echo $cart_count; ?></span>
                     <?php endif; ?>
@@ -630,11 +892,11 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">🛒 CUSTOMER</div>
+                    <div class="user-badge">⚪ CUSTOMER</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
-                        <span>🚪</span> Logout
+                        <span>➜</span> Logout
                     </a>
                 </div>
             </div>
@@ -643,168 +905,254 @@ $conn->close();
 
     <div class="container">
         <div class="page-header">
-            <h1>🎂 Custom Cake Requests</h1>
-            <p>Design your dream cake with our talented vendors</p>
+            <h1>🎂 Custom Cakes</h1>
+            <p>Order personalized cakes from talented vendors</p>
         </div>
 
-        <div class="content-grid">
-            <!-- Request Form -->
-            <div class="form-section">
-                <div class="section-title">📝 New Request</div>
+        <!-- Tabs Container -->
+        <div class="tabs-container">
+            <div class="tabs-header">
+                <button class="tab-button active" onclick="switchTab('vendors')">
+                    🏪 Browse Vendors
+                </button>
+                <button class="tab-button" onclick="switchTab('requests')">
+                    📋 My Requests
+                    <?php if (count($requests) > 0): ?>
+                    <span class="tab-badge"><?php echo count($requests); ?></span>
+                    <?php endif; ?>
+                </button>
+            </div>
 
+            <!-- Vendors Tab Content -->
+            <div id="vendorsTab" class="tab-content active">
                 <?php if (count($custom_shops) > 0): ?>
-                <form id="customCakeForm" enctype="multipart/form-data">
-                    <div class="form-group">
-                        <label for="shopSelect">Select Shop <span class="required">*</span></label>
-                        <select id="shopSelect" name="shop_id" required>
-                            <option value="">Choose a shop...</option>
-                            <?php foreach ($custom_shops as $shop): ?>
-                            <option value="<?php echo $shop['shop_id']; ?>">
-                                <?php echo htmlspecialchars($shop['shop_name']); ?> 
-                                (by <?php echo htmlspecialchars($shop['vendor_name']); ?>)
-                            </option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="flavour">Flavour <span class="required">*</span></label>
-                            <input type="text" id="flavour" name="flavour" required 
-                                   placeholder="e.g., Chocolate, Vanilla">
+                <div class="shops-grid">
+                    <?php foreach ($custom_shops as $shop): ?>
+                    <div class="shop-card">
+                        <div class="shop-image">
+                            <div class="shop-logo">🎂</div>
                         </div>
-                        <div class="form-group">
-                            <label for="size">Size <span class="required">*</span></label>
-                            <input type="text" id="size" name="size" required 
-                                   placeholder="e.g., 8 inch, 10 inch">
-                        </div>
-                    </div>
-
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label for="shape">Shape</label>
-                            <input type="text" id="shape" name="shape" 
-                                   placeholder="e.g., Round, Square, Heart">
-                        </div>
-                        <div class="form-group">
-                            <label for="weight">Weight (kg)</label>
-                            <input type="number" id="weight" name="weight" step="0.1" min="0.5" 
-                                   placeholder="e.g., 1.5">
+                        <div class="shop-body">
+                            <h3 class="shop-name"><?php echo htmlspecialchars($shop['shop_name']); ?></h3>
+                            <div class="shop-rating">
+                                <div class="stars">
+                                    <?php 
+                                    $avg_rating = round($shop['avg_rating']);
+                                    for ($i = 1; $i <= 5; $i++): 
+                                    ?>
+                                        <span class="star <?php echo $i > $avg_rating ? 'empty' : ''; ?>">⭐</span>
+                                    <?php endfor; ?>
+                                </div>
+                                <?php if ($shop['review_count'] > 0): ?>
+                                <span class="rating-text"><?php echo number_format($shop['avg_rating'], 1); ?></span>
+                                <span style="color: #7a5f57; font-size: 0.85rem;">(<?php echo $shop['review_count']; ?>)</span>
+                                <?php else: ?>
+                                <span style="color: #7a5f57; font-size: 0.85rem; font-style: italic;">No ratings yet</span>
+                                <?php endif; ?>
+                            </div>
+                            <p class="shop-description">
+                                Exquisite custom cakes for every celebration, crafted with the finest ingredients and artistic flair.
+                            </p>
+                            <div class="shop-actions">
+                                <a href="products.php?shop=<?php echo $shop['shop_id']; ?>" class="btn btn-view">
+                                    View Products
+                                </a>
+                                <button class="btn btn-order" onclick="openOrderModal(<?php echo $shop['shop_id']; ?>, '<?php echo htmlspecialchars($shop['shop_name'], ENT_QUOTES); ?>')">
+                                    🎂 Order Custom Cake
+                                </button>
+                            </div>
                         </div>
                     </div>
-
-                    <div class="form-group">
-                        <label for="layers">Number of Layers</label>
-                        <input type="number" id="layers" name="layers" min="1" max="10" 
-                               placeholder="e.g., 2">
-                    </div>
-
-                    <div class="form-group">
-                        <label for="description">Description <span class="required">*</span></label>
-                        <textarea id="description" name="description" required 
-                                  placeholder="Describe your dream cake..."></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="specialInstructions">Special Instructions</label>
-                        <textarea id="specialInstructions" name="special_instructions" 
-                                  placeholder="Any dietary requirements, allergies, or special requests..."></textarea>
-                    </div>
-
-                    <div class="form-group">
-                        <label for="deliveryDate">Delivery Date <span class="required">*</span></label>
-                        <input type="date" id="deliveryDate" name="delivery_date" required 
-                               min="<?php echo date('Y-m-d', strtotime('+3 days')); ?>">
-                    </div>
-
-                    <div class="form-group file-upload">
-                        <label>Reference Image (Optional)</label>
-                        <input type="file" id="referenceImage" name="reference_image" 
-                               accept="image/*" onchange="previewImage(this)">
-                        <label for="referenceImage" class="file-upload-label">
-                            📷 Choose Image
-                        </label>
-                        <img id="imagePreview" class="image-preview" alt="Preview">
-                    </div>
-
-                    <button type="submit" class="btn-submit">🎂 Submit Request</button>
-                </form>
+                    <?php endforeach; ?>
+                </div>
                 <?php else: ?>
-                <div class="no-shops-message">
-                    ⚠️ No shops currently offer custom cake services. Please check back later!
+                <div class="no-shops">
+                    <div class="no-shops-icon">🎂</div>
+                    <h3>No Custom Cake Vendors Available</h3>
+                    <p>No shops currently offer custom cake services. Please check back later!</p>
                 </div>
                 <?php endif; ?>
             </div>
 
-            <!-- Requests List -->
-            <div class="requests-section">
-                <div class="section-title">📋 My Requests</div>
-
+            <!-- My Requests Tab Content -->
+            <div id="requestsTab" class="tab-content">
                 <?php if (count($requests) > 0): ?>
-                    <?php foreach ($requests as $request): ?>
-                    <div class="request-card">
-                        <div class="request-header">
-                            <div class="request-id">Request #<?php echo $request['custom_order_id']; ?></div>
-                            <div class="status-badge status-<?php echo $request['status']; ?>">
-                                <?php echo ucfirst(str_replace('_', ' ', $request['status'])); ?>
-                            </div>
-                        </div>
-
-                        <div class="request-details">
-                            <div class="detail-item">
-                                <span class="detail-label">Shop</span>
-                                <span class="detail-value"><?php echo htmlspecialchars($request['shop_name']); ?></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Delivery Date</span>
-                                <span class="detail-value"><?php echo date('M d, Y', strtotime($request['delivery_date'])); ?></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Flavour</span>
-                                <span class="detail-value"><?php echo htmlspecialchars($request['flavour']); ?></span>
-                            </div>
-                            <div class="detail-item">
-                                <span class="detail-label">Size</span>
-                                <span class="detail-value"><?php echo htmlspecialchars($request['size']); ?></span>
-                            </div>
-                            <?php if ($request['shape']): ?>
-                            <div class="detail-item">
-                                <span class="detail-label">Shape</span>
-                                <span class="detail-value"><?php echo htmlspecialchars($request['shape']); ?></span>
-                            </div>
-                            <?php endif; ?>
-                            <?php if ($request['layers']): ?>
-                            <div class="detail-item">
-                                <span class="detail-label">Layers</span>
-                                <span class="detail-value"><?php echo $request['layers']; ?></span>
-                            </div>
-                            <?php endif; ?>
-                        </div>
-
-                        <div class="request-description">
-                            <div class="detail-label">Description</div>
-                            <p><?php echo nl2br(htmlspecialchars($request['description'])); ?></p>
-                        </div>
-
-                        <?php if ($request['estimated_price'] || $request['final_price']): ?>
-                        <div class="price-section">
-                            <span class="price-label">
-                                <?php echo $request['final_price'] ? 'Final Price' : 'Estimated Price'; ?>
-                            </span>
-                            <span class="price-value">
-                                ₹<?php echo number_format($request['final_price'] ?: $request['estimated_price'], 2); ?>
-                            </span>
-                        </div>
-                        <?php endif; ?>
-                    </div>
-                    <?php endforeach; ?>
+                <div style="overflow-x: auto;">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #fff5f7; border-bottom: 2px solid #ffe8ec;">
+                                <th style="padding: 1rem; text-align: left; color: #5a3e36; font-weight: 600;">Request #</th>
+                                <th style="padding: 1rem; text-align: left; color: #5a3e36; font-weight: 600;">Shop</th>
+                                <th style="padding: 1rem; text-align: left; color: #5a3e36; font-weight: 600;">Details</th>
+                                <th style="padding: 1rem; text-align: left; color: #5a3e36; font-weight: 600;">Delivery Date</th>
+                                <th style="padding: 1rem; text-align: left; color: #5a3e36; font-weight: 600;">Price</th>
+                                <th style="padding: 1rem; text-align: center; color: #5a3e36; font-weight: 600;">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php foreach ($requests as $request): ?>
+                            <tr style="border-bottom: 1px solid #ffe8ec;">
+                                <td style="padding: 1rem; color: #5a3e36; font-weight: 600;" data-label="Request #">#<?php echo $request['custom_order_id']; ?></td>
+                                <td style="padding: 1rem; color: #5a3e36;" data-label="Shop"><?php echo htmlspecialchars($request['shop_name']); ?></td>
+                                <td style="padding: 1rem; color: #7a5f57; font-size: 0.9rem;" data-label="Details">
+                                    <?php echo htmlspecialchars($request['flavour']); ?> | 
+                                    <?php echo htmlspecialchars($request['size']); ?> | 
+                                    <?php echo htmlspecialchars($request['shape']); ?>
+                                </td>
+                                <td style="padding: 1rem; color: #ff6b9d; font-weight: 600;" data-label="Delivery">
+                                    <?php echo date('M d, Y', strtotime($request['delivery_date'])); ?>
+                                </td>
+                                <td style="padding: 1rem; color: #ff6b9d; font-weight: 700; font-size: 1.1rem;" data-label="Price">
+                                    ₹<?php echo number_format($request['final_price'], 2); ?>
+                                </td>
+                                <td style="padding: 1rem; text-align: center;" data-label="Status">
+                                    <div class="status-badge status-<?php echo $request['status']; ?>">
+                                        <?php echo ucfirst(str_replace('_', ' ', $request['status'])); ?>
+                                    </div>
+                                </td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
                 <?php else: ?>
-                <div class="no-requests">
-                    <div class="no-requests-icon">🎂</div>
-                    <h3>No Requests Yet</h3>
-                    <p>Submit your first custom cake request!</p>
+                <div class="no-shops">
+                    <div class="no-shops-icon">📋</div>
+                    <h3>No Custom Cake Requests Yet</h3>
+                    <p>You haven't placed any custom cake orders. Browse vendors to get started!</p>
+                    <button class="btn btn-order" onclick="switchTab('vendors')" style="margin-top: 1.5rem;">
+                        🎂 Browse Vendors
+                    </button>
                 </div>
                 <?php endif; ?>
+            </div>
+        </div>
+    </div>
+
+    <!-- Order Modal -->
+    <div id="orderModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <div class="modal-icon">🎂</div>
+                <h2 class="modal-title">Design Your Custom Cake</h2>
+                <p class="modal-subtitle" id="modalShopName">Create a one-of-a-kind cake</p>
+            </div>
+            <div class="modal-body">
+                <form id="customCakeForm" enctype="multipart/form-data">
+                    <input type="hidden" id="selectedShopId" name="shop_id">
+                    
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="customerName">Your Name *</label>
+                            <input type="text" id="customerName" value="<?php echo htmlspecialchars($user_name); ?>" readonly>
+                        </div>
+                        <div class="form-group">
+                            <label for="customerPhone">Phone Number *</label>
+                            <input type="tel" id="customerPhone" name="phone_no" required 
+                                   value="<?php echo htmlspecialchars($user_phone); ?>"
+                                   placeholder="Enter your phone number">
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="cakeSize">Cake Size *</label>
+                            <select id="cakeSize" name="size" required onchange="calculatePrice()">
+                                <option value="">Select size</option>
+                                <option value="0.5kg" data-price="400">0.5 kg - ₹400</option>
+                                <option value="1kg" data-price="700">1 kg - ₹700</option>
+                                <option value="1.5kg" data-price="1000">1.5 kg - ₹1000</option>
+                                <option value="2kg" data-price="1300">2 kg - ₹1300</option>
+                                <option value="2.5kg" data-price="1600">2.5 kg - ₹1600</option>
+                                <option value="3kg" data-price="1900">3 kg - ₹1900</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="flavour">Flavor *</label>
+                            <select id="flavour" name="flavour" required onchange="calculatePrice()">
+                                <option value="">Select flavor</option>
+                                <option value="Chocolate" data-price="0">Chocolate - ₹0</option>
+                                <option value="Vanilla" data-price="0">Vanilla - ₹0</option>
+                                <option value="Strawberry" data-price="50">Strawberry - +₹50</option>
+                                <option value="Red Velvet" data-price="100">Red Velvet - +₹100</option>
+                                <option value="Black Forest" data-price="80">Black Forest - +₹80</option>
+                                <option value="Butterscotch" data-price="60">Butterscotch - +₹60</option>
+                                <option value="Pineapple" data-price="40">Pineapple - +₹40</option>
+                                <option value="Mixed Fruit" data-price="70">Mixed Fruit - +₹70</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="shape">Shape *</label>
+                            <select id="shape" name="shape" required onchange="calculatePrice()">
+                                <option value="">Select shape</option>
+                                <option value="Round" data-price="0">Round - ₹0</option>
+                                <option value="Square" data-price="0">Square - ₹0</option>
+                                <option value="Rectangle" data-price="0">Rectangle - ₹0</option>
+                                <option value="Heart" data-price="150">Heart - +₹150</option>
+                                <option value="Number" data-price="200">Number - +₹200</option>
+                                <option value="Custom" data-price="300">Custom - +₹300</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="layers">Number of Layers *</label>
+                            <select id="layers" name="layers" required onchange="calculatePrice()">
+                                <option value="">Select layers</option>
+                                <option value="1" data-price="0">1 Layer - ₹0</option>
+                                <option value="2" data-price="100">2 Layers - +₹100</option>
+                                <option value="3" data-price="200">3 Layers - +₹200</option>
+                                <option value="4" data-price="300">4 Layers - +₹300</option>
+                                <option value="5" data-price="400">5+ Layers - +₹400</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="occasion">Occasion</label>
+                            <select id="occasion" name="occasion">
+                                <option value="">Select occasion</option>
+                                <option value="Birthday">Birthday</option>
+                                <option value="Anniversary">Anniversary</option>
+                                <option value="Wedding">Wedding</option>
+                                <option value="Graduation">Graduation</option>
+                                <option value="Other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="deliveryDate">Delivery Date *</label>
+                            <input type="date" id="deliveryDate" name="delivery_date" required 
+                                   min="<?php echo date('Y-m-d', strtotime('+2 days')); ?>">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Design Details <span style="color: #7a5f57; font-weight: normal;">(Optional)</span></label>
+                        <textarea id="description" name="description" 
+                                  placeholder="Describe your cake design - colors, decorations, text, themes, etc. (Optional)"></textarea>
+                    </div>
+
+                    <div class="form-group file-upload-wrapper">
+                        <label>Reference Image (Optional)</label>
+                        <input type="file" id="referenceImage" name="reference_image" 
+                               accept="image/*" onchange="previewImage(this)">
+                        <label for="referenceImage" class="file-upload-label">
+                            📷 Choose File
+                        </label>
+                        <img id="imagePreview" class="image-preview" alt="Preview">
+                    </div>
+
+                    <div class="price-display">
+                        <div class="price-label">Total Price</div>
+                        <div class="price-value" id="totalPrice">₹0.00</div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-cancel" onclick="closeOrderModal()">Cancel</button>
+                <button type="button" class="btn-submit" onclick="submitOrder()">Submit Custom Cake Request</button>
             </div>
         </div>
     </div>
@@ -827,7 +1175,28 @@ $conn->close();
             }
         });
 
-        // Image preview
+        function openOrderModal(shopId, shopName) {
+            document.getElementById('selectedShopId').value = shopId;
+            document.getElementById('modalShopName').textContent = 'Create a one-of-a-kind cake with ' + shopName;
+            document.getElementById('orderModal').style.display = 'block';
+            document.body.style.overflow = 'hidden';
+        }
+
+        function closeOrderModal() {
+            document.getElementById('orderModal').style.display = 'none';
+            document.getElementById('customCakeForm').reset();
+            document.getElementById('imagePreview').style.display = 'none';
+            document.getElementById('totalPrice').textContent = '₹0.00';
+            document.body.style.overflow = 'auto';
+        }
+
+        window.onclick = function(event) {
+            const modal = document.getElementById('orderModal');
+            if (event.target == modal) {
+                closeOrderModal();
+            }
+        }
+
         function previewImage(input) {
             const preview = document.getElementById('imagePreview');
             const label = input.nextElementSibling;
@@ -837,7 +1206,7 @@ $conn->close();
                 reader.onload = function(e) {
                     preview.src = e.target.result;
                     preview.style.display = 'block';
-                    label.textContent = '✓ Image Selected';
+                    label.innerHTML = '✓ Image Selected';
                     label.style.background = '#d1e7dd';
                     label.style.borderColor = '#4caf50';
                     label.style.color = '#0f5132';
@@ -846,14 +1215,54 @@ $conn->close();
             }
         }
 
-        // Form submission
-        document.getElementById('customCakeForm').addEventListener('submit', function(e) {
-            e.preventDefault();
+        function calculatePrice() {
+            const size = document.getElementById('cakeSize');
+            const flavour = document.getElementById('flavour');
+            const shape = document.getElementById('shape');
+            const layers = document.getElementById('layers');
+
+            let total = 0;
+
+            if (size.value) {
+                total += parseFloat(size.options[size.selectedIndex].dataset.price || 0);
+            }
+            if (flavour.value) {
+                total += parseFloat(flavour.options[flavour.selectedIndex].dataset.price || 0);
+            }
+            if (shape.value) {
+                total += parseFloat(shape.options[shape.selectedIndex].dataset.price || 0);
+            }
+            if (layers.value) {
+                total += parseFloat(layers.options[layers.selectedIndex].dataset.price || 0);
+            }
+
+            document.getElementById('totalPrice').textContent = '₹' + total.toFixed(2);
+        }
+
+        function submitOrder() {
+            const form = document.getElementById('customCakeForm');
             
-            const formData = new FormData(this);
-            const submitBtn = this.querySelector('.btn-submit');
+            // Validate required fields (description is now optional)
+            if (!form.shop_id.value || !form.phone_no.value || !form.delivery_date.value || 
+                !form.size.value || !form.flavour.value || !form.shape.value || !form.layers.value) {
+                alert('Please fill all required fields');
+                return;
+            }
+
+            // Validate phone number
+            const phone = form.phone_no.value.trim();
+            if (phone.length < 10) {
+                alert('Please enter a valid phone number');
+                return;
+            }
             
-            // Disable button
+            const formData = new FormData(form);
+            
+            // Add final price to form data
+            const totalPrice = document.getElementById('totalPrice').textContent.replace('₹', '').replace(',', '');
+            formData.append('final_price', totalPrice);
+            
+            const submitBtn = document.querySelector('.btn-submit');
             submitBtn.disabled = true;
             submitBtn.textContent = 'Submitting...';
             
@@ -865,20 +1274,44 @@ $conn->close();
             .then(data => {
                 if (data.success) {
                     alert('✓ Custom cake request submitted successfully!');
+                    closeOrderModal();
                     location.reload();
                 } else {
                     alert('Error: ' + data.message);
                     submitBtn.disabled = false;
-                    submitBtn.textContent = '🎂 Submit Request';
+                    submitBtn.textContent = 'Submit Custom Cake Request';
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
                 alert('An error occurred. Please try again.');
                 submitBtn.disabled = false;
-                submitBtn.textContent = '🎂 Submit Request';
+                submitBtn.textContent = 'Submit Custom Cake Request';
             });
-        });
+        }
+
+        // Tab switching function
+        function switchTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // Remove active class from all tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            
+            // Show selected tab content
+            if (tabName === 'vendors') {
+                document.getElementById('vendorsTab').classList.add('active');
+                document.querySelectorAll('.tab-button')[0].classList.add('active');
+            } else if (tabName === 'requests') {
+                document.getElementById('requestsTab').classList.add('active');
+                document.querySelectorAll('.tab-button')[1].classList.add('active');
+            }
+        }
+    
     </script>
 </body>
 </html>

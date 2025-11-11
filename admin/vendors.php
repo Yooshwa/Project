@@ -502,10 +502,11 @@ $conn->close();
 </head>
 <body>
     <nav class="navbar">
-        <a href="dashboard.php" class="navbar-brand">🧁 Sweetkart Admin</a>
+        <a href="dashboard.php" class="navbar-brand"> Sweetkart Admin</a>
         <ul class="navbar-menu">
             <li><a href="dashboard.php">Dashboard</a></li>
             <li><a href="vendors.php" class="active">Manage Vendors</a></li>
+            <li><a href="customers.php">Manage Customers</a></li>
         </ul>
         <div class="navbar-user">
             <button class="user-profile-btn" onclick="toggleDropdown()">
@@ -517,11 +518,11 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">👨‍💼 ADMIN</div>
+                    <div class="user-badge">⚪ ADMIN</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
-                        <span>🚪</span> Logout
+                        <span>➜</span> Logout
                     </a>
                 </div>
             </div>
@@ -558,7 +559,7 @@ $conn->close();
                             <small style="color: #7a5f57;">ID: <?php echo $vendor['vendor_id']; ?></small>
                         </td>
                         <td>
-                            <span class="shop-count">🪙 <?php echo $vendor['total_shops']; ?> Shop(s)</span>
+                            <span class="shop-count"> <?php echo $vendor['total_shops']; ?> Shop(s)</span>
                             <?php if (count($vendor['shop_names']) > 0): ?>
                                 <br>
                                 <span class="shop-names-small">
@@ -570,12 +571,12 @@ $conn->close();
                             <?php endif; ?>
                         </td>
                         <td>
-                            <span class="product-count">🧁 <?php echo $vendor['total_products']; ?></span>
+                            <span class="product-count"> <?php echo $vendor['total_products']; ?></span>
                         </td>
                         <td><?php echo htmlspecialchars($vendor['email']); ?></td>
                         <td>
                             <?php if ($vendor['custom_cake_flag']): ?>
-                                <span class="custom-cake-badge">🎂 Available</span>
+                                <span class="custom-cake-badge"> Available</span>
                             <?php else: ?>
                                 <span style="color: #7a5f57;">Not offered</span>
                             <?php endif; ?>
@@ -590,22 +591,22 @@ $conn->close();
                             <div class="action-buttons">
                                 <?php if ($vendor['status'] === 'pending'): ?>
                                     <button class="btn btn-approve" onclick="updateVendorStatus(<?php echo $vendor['vendor_id']; ?>, 'approved')">
-                                        ✓ Approve
+                                        Approve
                                     </button>
                                     <button class="btn btn-reject" onclick="updateVendorStatus(<?php echo $vendor['vendor_id']; ?>, 'rejected')">
-                                        ✗ Reject
+                                        Reject
                                     </button>
                                 <?php elseif ($vendor['status'] === 'approved'): ?>
                                     <button class="btn btn-reject" onclick="updateVendorStatus(<?php echo $vendor['vendor_id']; ?>, 'rejected')">
-                                        ✗ Suspend
+                                        Suspend
                                     </button>
                                 <?php elseif ($vendor['status'] === 'rejected'): ?>
                                     <button class="btn btn-approve" onclick="updateVendorStatus(<?php echo $vendor['vendor_id']; ?>, 'approved')">
-                                        ✓ Approve
+                                        Approve
                                     </button>
                                 <?php endif; ?>
                                 <button class="btn btn-delete" onclick="showDeleteModal(<?php echo $vendor['vendor_id']; ?>, '<?php echo htmlspecialchars($vendor['name'], ENT_QUOTES); ?>', <?php echo $vendor['total_shops']; ?>, <?php echo $vendor['total_products']; ?>)">
-                                    🗑️ Delete
+                                        Delete
                                 </button>
                             </div>
                         </td>

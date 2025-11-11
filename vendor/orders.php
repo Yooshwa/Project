@@ -1,93 +1,108 @@
 <?php
-// Start session and check authentication
+/*
+ * VENDOR ORDERS PAGE - WITH PAYMENT MANAGEMENT
+ * Purpose: View and manage orders, update order status, mark payments as completed
+ * Features: Order list, status updates, payment status tracking, mark as paid button
+ */
+
 require_once '../config/auth_check.php';
 
-// Check if user is vendor
 if ($_SESSION['role'] !== 'vendor') {
     header("Location: ../index.php");
     exit;
 }
 
-// Get user info
 $user_name = $_SESSION['name'];
 $user_email = $_SESSION['email'];
-$user_id = $_SESSION['user_id'];
+$vendor_user_id = $_SESSION['user_id'];
 
-// Get database connection
 require_once '../config/database.php';
 $conn = getDBConnection();
 
-// Get vendor information
-$stmt = $conn->prepare("SELECT vendor_id, status FROM Vendors WHERE user_id = ?");
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$result = $stmt->get_result();
-$vendor = $result->fetch_assoc();
-$stmt->close();
-
-if (!$vendor || $vendor['status'] !== 'approved') {
-    header("Location: dashboard.php");
-    exit;
-}
-
+// Get vendor_id
+$vendor_query = "SELECT vendor_id, custom_cake_flag FROM Vendors WHERE user_id = $vendor_user_id";
+$vendor_result = $conn->query($vendor_query);
+$vendor = $vendor_result->fetch_assoc();
 $vendor_id = $vendor['vendor_id'];
+$custom_cake_flag = $vendor['custom_cake_flag'];
 
 // Get filter parameter
-$filter_status = $_GET['status'] ?? 'all';
+$status_filter = $_GET['status'] ?? 'all';
 
-// Get all orders that contain products from vendor's shops
+// Build orders query - only orders containing vendor's products
 $orders_query = "SELECT DISTINCT
     o.order_id,
     o.user_id,
     o.total_amount,
-    o.status,
+    o.status as order_status,
     o.order_date,
     u.name as customer_name,
     u.email as customer_email,
-    u.address as customer_address
+    u.address as delivery_address,
+    p.method as payment_method,
+    p.status as payment_status,
+    p.amount as payment_amount
 FROM Orders o
 JOIN Order_Items oi ON o.order_id = oi.order_id
-JOIN Products p ON oi.product_id = p.product_id
-JOIN Shops s ON p.shop_id = s.shop_id
+JOIN Products pr ON oi.product_id = pr.product_id
+JOIN Shops s ON pr.shop_id = s.shop_id
 JOIN Users u ON o.user_id = u.user_id
+LEFT JOIN Payments p ON o.order_id = p.order_id
 WHERE s.vendor_id = $vendor_id";
 
-if ($filter_status !== 'all') {
-    $orders_query .= " AND o.status = '" . $conn->real_escape_string($filter_status) . "'";
+// Apply status filter
+if ($status_filter !== 'all') {
+    $status_filter_escaped = $conn->real_escape_string($status_filter);
+    $orders_query .= " AND o.status = '$status_filter_escaped'";
 }
 
 $orders_query .= " ORDER BY o.order_date DESC";
 
-$result = $conn->query($orders_query);
+$orders_result = $conn->query($orders_query);
 $orders = [];
-while ($row = $result->fetch_assoc()) {
-    $order_id = $row['order_id'];
-    
-    // Get order items for this order (only vendor's products)
+
+while ($order = $orders_result->fetch_assoc()) {
+    // Get items for this order (only vendor's products)
     $items_query = "SELECT 
+        oi.order_item_id,
         oi.quantity,
         oi.price,
-        p.product_name,
-        p.image,
+        pr.product_name,
+        pr.image,
         s.shop_name
     FROM Order_Items oi
-    JOIN Products p ON oi.product_id = p.product_id
-    JOIN Shops s ON p.shop_id = s.shop_id
-    WHERE oi.order_id = $order_id AND s.vendor_id = $vendor_id";
+    JOIN Products pr ON oi.product_id = pr.product_id
+    JOIN Shops s ON pr.shop_id = s.shop_id
+    WHERE oi.order_id = " . $order['order_id'] . " 
+    AND s.vendor_id = $vendor_id";
     
     $items_result = $conn->query($items_query);
-    $items = [];
-    $vendor_total = 0;
+    $order['items'] = [];
+    $order['vendor_total'] = 0;
     
     while ($item = $items_result->fetch_assoc()) {
-        $items[] = $item;
-        $vendor_total += $item['quantity'] * $item['price'];
+        $order['items'][] = $item;
+        $order['vendor_total'] += $item['price'] * $item['quantity'];
     }
     
-    $row['items'] = $items;
-    $row['vendor_total'] = $vendor_total;
-    $orders[] = $row;
+    $orders[] = $order;
 }
+
+// Get order statistics
+$stats_query = "SELECT 
+    COUNT(DISTINCT o.order_id) as total_orders,
+    SUM(CASE WHEN o.status = 'pending' THEN 1 ELSE 0 END) as pending_count,
+    SUM(CASE WHEN o.status = 'processing' THEN 1 ELSE 0 END) as processing_count,
+    SUM(CASE WHEN o.status = 'completed' THEN 1 ELSE 0 END) as completed_count,
+    SUM(CASE WHEN o.status = 'cancelled' THEN 1 ELSE 0 END) as cancelled_count
+FROM Orders o
+JOIN Order_Items oi ON o.order_id = oi.order_id
+JOIN Products pr ON oi.product_id = pr.product_id
+JOIN Shops s ON pr.shop_id = s.shop_id
+WHERE s.vendor_id = $vendor_id";
+
+$stats_result = $conn->query($stats_query);
+$stats = $stats_result->fetch_assoc();
 
 $conn->close();
 ?>
@@ -96,7 +111,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Orders - Sweetkart Vendor</title>
+    <title>Orders - Vendor Dashboard</title>
     <style>
         * {
             margin: 0;
@@ -117,6 +132,9 @@ $conn->close();
             display: flex;
             justify-content: space-between;
             align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
 
         .navbar-brand {
@@ -169,10 +187,6 @@ $conn->close();
             transition: all 0.3s;
         }
 
-        .user-profile-btn:hover {
-            background: #fff5f7;
-        }
-
         .user-avatar {
             width: 32px;
             height: 32px;
@@ -188,9 +202,8 @@ $conn->close();
 
         .dropdown-arrow {
             font-size: 0.7rem;
-            transition: transform 0.3s;
         }
-
+        
         .user-profile-btn.active .dropdown-arrow {
             transform: rotate(180deg);
         }
@@ -210,18 +223,6 @@ $conn->close();
 
         .user-dropdown.show {
             display: block;
-            animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
 
         .dropdown-header {
@@ -233,11 +234,6 @@ $conn->close();
             color: #5a3e36;
             font-weight: 600;
             margin-bottom: 0.25rem;
-        }
-
-        .dropdown-header span {
-            color: #7a5f57;
-            font-size: 0.85rem;
         }
 
         .user-badge {
@@ -273,10 +269,6 @@ $conn->close();
             color: #dc3545;
         }
 
-        .dropdown-item.logout:hover {
-            background: #ffe8ec;
-        }
-
         .container {
             max-width: 1400px;
             margin: 2rem auto;
@@ -297,34 +289,51 @@ $conn->close();
             margin-bottom: 1rem;
         }
 
-        .filter-section {
+        /* Filter Tabs */
+        .filter-tabs {
             display: flex;
             gap: 1rem;
-            align-items: center;
+            margin-top: 1.5rem;
+            flex-wrap: wrap;
         }
 
-        .filter-section label {
+        .filter-tab {
+            padding: 0.75rem 1.5rem;
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 25px;
             color: #5a3e36;
             font-weight: 600;
-        }
-
-        .filter-section select {
-            padding: 0.5rem 1rem;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 1rem;
-            color: #5a3e36;
             cursor: pointer;
             transition: all 0.3s;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
-        .filter-section select:focus {
-            outline: none;
+        .filter-tab:hover {
+            border-color: #ff6b9d;
+            background: #fff5f7;
+        }
+
+        .filter-tab.active {
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+            color: white;
             border-color: #ff6b9d;
         }
 
-        .orders-container {
-            display: grid;
+        .tab-count {
+            background: rgba(255, 255, 255, 0.3);
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+        }
+
+        /* Orders List */
+        .orders-list {
+            display: flex;
+            flex-direction: column;
             gap: 1.5rem;
         }
 
@@ -333,20 +342,16 @@ $conn->close();
             border-radius: 15px;
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
             overflow: hidden;
-            transition: transform 0.3s;
-        }
-
-        .order-card:hover {
-            transform: translateY(-3px);
         }
 
         .order-header {
-            background: linear-gradient(135deg, #fff5f7 0%, #ffe8ec 100%);
+            background: #fff5f7;
             padding: 1.5rem;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
             border-bottom: 2px solid #ffe8ec;
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 1rem;
+            align-items: center;
         }
 
         .order-info h3 {
@@ -355,15 +360,18 @@ $conn->close();
             margin-bottom: 0.5rem;
         }
 
-        .order-date {
-            color: #7a5f57;
+        .order-meta {
+            display: flex;
+            gap: 1.5rem;
+            flex-wrap: wrap;
             font-size: 0.9rem;
+            color: #7a5f57;
         }
 
         .status-badge {
             padding: 0.5rem 1rem;
             border-radius: 20px;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
             font-weight: 600;
         }
 
@@ -373,76 +381,125 @@ $conn->close();
         }
 
         .status-processing {
-            background: #cce5ff;
-            color: #004085;
+            background: #cfe2ff;
+            color: #084298;
         }
 
         .status-completed {
-            background: #d4edda;
-            color: #155724;
+            background: #d1e7dd;
+            color: #0f5132;
         }
 
         .status-cancelled {
             background: #f8d7da;
-            color: #721c24;
+            color: #842029;
         }
 
-        .order-body {
+        /* Payment Section */
+        .payment-section {
             padding: 1.5rem;
-        }
-
-        .customer-info {
             background: #f8f9fa;
-            padding: 1rem;
-            border-radius: 10px;
-            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #ffe8ec;
         }
 
-        .customer-info h4 {
-            color: #5a3e36;
-            margin-bottom: 0.5rem;
-        }
-
-        .customer-info p {
-            color: #7a5f57;
-            font-size: 0.9rem;
-            margin: 0.25rem 0;
-        }
-
-        .order-items {
-            margin-bottom: 1.5rem;
-        }
-
-        .order-items h4 {
-            color: #5a3e36;
+        .payment-info {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
             margin-bottom: 1rem;
         }
 
-        .item-row {
+        .payment-detail {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .payment-label {
+            color: #7a5f57;
+            font-size: 0.85rem;
+        }
+
+        .payment-value {
+            color: #5a3e36;
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+
+        .payment-actions {
+            margin-top: 1rem;
             display: flex;
             gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn-mark-paid {
+            padding: 0.75rem 1.5rem;
+            background: linear-gradient(135deg, #4caf50 0%, #66bb6a 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-mark-paid:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
+        }
+
+        .payment-completed-badge {
+            padding: 0.75rem 1.5rem;
+            background: #d1e7dd;
+            color: #0f5132;
+            border-radius: 8px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        /* Order Items */
+        .order-items {
+            padding: 1.5rem;
+        }
+
+        .order-item {
+            display: grid;
+            grid-template-columns: 80px 1fr auto;
+            gap: 1rem;
             padding: 1rem;
-            background: #f8f9fa;
-            border-radius: 8px;
-            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #ffe8ec;
         }
 
-        .item-image {
-            width: 60px;
-            height: 60px;
-            object-fit: cover;
-            border-radius: 8px;
+        .order-item:last-child {
+            border-bottom: none;
         }
 
-        .no-image {
-            width: 60px;
-            height: 60px;
-            background: #e0e0e0;
+        .item-image-container {
+            width: 80px;
+            height: 80px;
             border-radius: 8px;
+            overflow: hidden;
+            background: #f5f5f5;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 2rem;
+        }
+
+        .item-image {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .no-image {
+            font-size: 2.5rem;
+            color: #ddd;
         }
 
         .item-details {
@@ -457,68 +514,70 @@ $conn->close();
 
         .item-shop {
             color: #7a5f57;
-            font-size: 0.85rem;
-            margin-bottom: 0.25rem;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .item-quantity {
+            color: #7a5f57;
+            font-size: 0.9rem;
         }
 
         .item-price {
             color: #ff6b9d;
             font-weight: 600;
+            font-size: 1.1rem;
+            text-align: right;
         }
 
-        .order-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
+        /* Order Actions */
+        .order-actions {
             padding: 1.5rem;
-            background: #f8f9fa;
-            border-top: 2px solid #ffe8ec;
-        }
-
-        .order-total {
-            font-size: 1.2rem;
-            font-weight: 600;
-            color: #5a3e36;
-        }
-
-        .order-total span {
-            color: #ff6b9d;
-            font-size: 1.4rem;
-        }
-
-        .status-actions {
+            background: #fff5f7;
             display: flex;
-            gap: 0.5rem;
+            gap: 1rem;
+            justify-content: flex-end;
+            flex-wrap: wrap;
         }
 
         .btn {
-            padding: 0.5rem 1rem;
+            padding: 0.75rem 1.5rem;
             border: none;
             border-radius: 8px;
-            font-size: 0.9rem;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
         }
 
-        .btn-process {
-            background: #007bff;
+        .btn-primary {
+            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
             color: white;
         }
 
-        .btn-process:hover {
-            background: #0056b3;
+        .btn-primary:hover {
             transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(255, 107, 157, 0.3);
         }
 
-        .btn-complete {
-            background: #28a745;
+        .btn-success {
+            background: #4caf50;
             color: white;
         }
 
-        .btn-complete:hover {
-            background: #1e7e34;
-            transform: translateY(-2px);
+        .btn-success:hover {
+            background: #45a049;
+        }
+
+        .btn-danger {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #da190b;
         }
 
         .no-orders {
@@ -530,23 +589,29 @@ $conn->close();
         }
 
         .no-orders-icon {
-            font-size: 4rem;
+            font-size: 5rem;
             margin-bottom: 1rem;
         }
 
-        .no-orders h3 {
-            color: #5a3e36;
-            margin-bottom: 0.5rem;
-        }
+        @media (max-width: 768px) {
+            .order-header {
+                grid-template-columns: 1fr;
+            }
 
-        .no-orders p {
-            color: #7a5f57;
+            .order-item {
+                grid-template-columns: 60px 1fr;
+            }
+
+            .item-price {
+                grid-column: 2;
+                text-align: left;
+            }
         }
     </style>
 </head>
 <body>
     <nav class="navbar">
-        <a href="dashboard.php" class="navbar-brand">🧁 Sweetkart Vendor</a>
+        <a href="dashboard.php" class="navbar-brand"> Sweetkart Vendor</a>
         <ul class="navbar-menu">
             <li><a href="dashboard.php">Dashboard</a></li>
             <li><a href="shops.php">My Shops</a></li>
@@ -564,11 +629,11 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">🪙 VENDOR</div>
+                    <div class="user-badge">⚪ VENDOR</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
-                        <span>🚪</span> Logout
+                        <span>➜</span> Logout
                     </a>
                 </div>
             </div>
@@ -578,99 +643,165 @@ $conn->close();
     <div class="container">
         <div class="page-header">
             <h1>📦 Orders Management</h1>
-            <div class="filter-section">
-                <label for="statusFilter">Filter by Status:</label>
-                <select id="statusFilter" onchange="filterByStatus()">
-                    <option value="all" <?php echo $filter_status === 'all' ? 'selected' : ''; ?>>All Orders</option>
-                    <option value="pending" <?php echo $filter_status === 'pending' ? 'selected' : ''; ?>>Pending</option>
-                    <option value="processing" <?php echo $filter_status === 'processing' ? 'selected' : ''; ?>>Processing</option>
-                    <option value="completed" <?php echo $filter_status === 'completed' ? 'selected' : ''; ?>>Completed</option>
-                    <option value="cancelled" <?php echo $filter_status === 'cancelled' ? 'selected' : ''; ?>>Cancelled</option>
-                </select>
+            <p>View and manage your orders</p>
+            
+            <div class="filter-tabs">
+                <a href="orders.php?status=all" class="filter-tab <?php echo $status_filter === 'all' ? 'active' : ''; ?>">
+                    All Orders
+                    <span class="tab-count"><?php echo $stats['total_orders']; ?></span>
+                </a>
+                <a href="orders.php?status=pending" class="filter-tab <?php echo $status_filter === 'pending' ? 'active' : ''; ?>">
+                    Pending
+                    <span class="tab-count"><?php echo $stats['pending_count']; ?></span>
+                </a>
+                <a href="orders.php?status=processing" class="filter-tab <?php echo $status_filter === 'processing' ? 'active' : ''; ?>">
+                    Processing
+                    <span class="tab-count"><?php echo $stats['processing_count']; ?></span>
+                </a>
+                <a href="orders.php?status=completed" class="filter-tab <?php echo $status_filter === 'completed' ? 'active' : ''; ?>">
+                    Completed
+                    <span class="tab-count"><?php echo $stats['completed_count']; ?></span>
+                </a>
+                <a href="orders.php?status=cancelled" class="filter-tab <?php echo $status_filter === 'cancelled' ? 'active' : ''; ?>">
+                    Cancelled
+                    <span class="tab-count"><?php echo $stats['cancelled_count']; ?></span>
+                </a>
             </div>
         </div>
 
-        <div class="orders-container">
-            <?php if (count($orders) > 0): ?>
-                <?php foreach ($orders as $order): ?>
-                <div class="order-card">
-                    <div class="order-header">
-                        <div class="order-info">
-                            <h3>Order #<?php echo $order['order_id']; ?></h3>
-                            <p class="order-date">📅 <?php echo date('M d, Y - h:i A', strtotime($order['order_date'])); ?></p>
-                        </div>
-                        <span class="status-badge status-<?php echo $order['status']; ?>">
-                            <?php echo ucfirst($order['status']); ?>
-                        </span>
-                    </div>
-
-                    <div class="order-body">
-                        <div class="customer-info">
-                            <h4>👤 Customer Information</h4>
-                            <p><strong>Name:</strong> <?php echo htmlspecialchars($order['customer_name']); ?></p>
-                            <p><strong>Email:</strong> <?php echo htmlspecialchars($order['customer_email']); ?></p>
-                            <p><strong>Address:</strong> <?php echo htmlspecialchars($order['customer_address']); ?></p>
-                        </div>
-
-                        <div class="order-items">
-                            <h4>🛒 Order Items (Your Products)</h4>
-                            <?php foreach ($order['items'] as $item): ?>
-                            <div class="item-row">
-                                <?php if (!empty($item['image'])): ?>
-                                    <img src="../uploads/products/<?php echo htmlspecialchars($item['image']); ?>" 
-                                         alt="Product" class="item-image">
-                                <?php else: ?>
-                                    <div class="no-image">🧁</div>
-                                <?php endif; ?>
-                                <div class="item-details">
-                                    <div class="item-name"><?php echo htmlspecialchars($item['product_name']); ?></div>
-                                    <div class="item-shop">Shop: <?php echo htmlspecialchars($item['shop_name']); ?></div>
-                                    <div class="item-price">
-                                        ₹<?php echo number_format($item['price'], 2); ?> × <?php echo $item['quantity']; ?> = 
-                                        ₹<?php echo number_format($item['price'] * $item['quantity'], 2); ?>
-                                    </div>
-                                </div>
-                            </div>
-                            <?php endforeach; ?>
+        <?php if (count($orders) > 0): ?>
+        <div class="orders-list">
+            <?php foreach ($orders as $order): ?>
+            <div class="order-card">
+                <!-- Order Header -->
+                <div class="order-header">
+                    <div class="order-info">
+                        <h3>Order #<?php echo $order['order_id']; ?></h3>
+                        <div class="order-meta">
+                            <span>👤 <?php echo htmlspecialchars($order['customer_name']); ?></span>
+                            <span>📅 <?php echo date('M d, Y h:i A', strtotime($order['order_date'])); ?></span>
                         </div>
                     </div>
-
-                    <div class="order-footer">
-                        <div class="order-total">
-                            Your Total: <span>₹<?php echo number_format($order['vendor_total'], 2); ?></span>
-                        </div>
-                        <div class="status-actions">
-                            <?php if ($order['status'] === 'pending'): ?>
-                                <button class="btn btn-process" onclick="updateOrderStatus(<?php echo $order['order_id']; ?>, 'processing')">
-                                    ⏩ Start Processing
-                                </button>
-                            <?php elseif ($order['status'] === 'processing'): ?>
-                                <button class="btn btn-complete" onclick="updateOrderStatus(<?php echo $order['order_id']; ?>, 'completed')">
-                                    ✅ Mark Complete
-                                </button>
-                            <?php elseif ($order['status'] === 'completed'): ?>
-                                <span style="color: #28a745; font-weight: 600;">✅ Completed</span>
-                            <?php endif; ?>
-                        </div>
+                    <div class="status-badge status-<?php echo $order['order_status']; ?>">
+                        <?php echo ucfirst($order['order_status']); ?>
                     </div>
                 </div>
-                <?php endforeach; ?>
-            <?php else: ?>
-            <div class="no-orders">
-                <div class="no-orders-icon">📦</div>
-                <h3>No Orders Found</h3>
-                <p>Orders containing your products will appear here</p>
+
+                <!-- Payment Section -->
+                <div class="payment-section">
+                    <div class="payment-info">
+                        <div class="payment-detail">
+                            <span class="payment-label">Payment Method</span>
+                            <span class="payment-value">
+                                <?php echo $order['payment_method'] === 'cash' ? '💵 Cash on Delivery' : '💳 Card Payment'; ?>
+                            </span>
+                        </div>
+                        <div class="payment-detail">
+                            <span class="payment-label">Payment Status</span>
+                            <span class="payment-value">
+                                <span class="status-badge status-<?php echo $order['payment_status']; ?>">
+                                    <?php 
+                                    if ($order['payment_status'] === 'completed') {
+                                        echo '✅ Paid';
+                                    } else {
+                                        echo ($order['payment_method'] === 'cash') ? '🟡 Cash on Delivery' : '🟡 Pending';
+                                    }
+                                    ?>
+                                </span>
+                            </span>
+                        </div>
+                        <div class="payment-detail">
+                            <span class="payment-label">Your Earnings</span>
+                            <span class="payment-value" style="color: #ff6b9d;">₹<?php echo number_format($order['vendor_total'], 2); ?></span>
+                        </div>
+                    </div>
+
+                    <!-- Payment Actions -->
+                    <div class="payment-actions">
+                        <?php if ($order['payment_method'] === 'cash' && $order['payment_status'] === 'pending' && $order['order_status'] !== 'cancelled'): ?>
+                            <button class="btn-mark-paid" onclick="markAsPaid(<?php echo $order['order_id']; ?>)">
+                                💰 Mark as Paid
+                            </button>
+                            <span style="color: #7a5f57; font-size: 0.9rem; display: flex; align-items: center;">
+                                (Click after receiving cash payment)
+                            </span>
+                        <?php elseif ($order['payment_status'] === 'completed'): ?>
+                            <div class="payment-completed-badge">
+                                ✅ Payment Received
+                            </div>
+                        <?php elseif ($order['order_status'] === 'cancelled'): ?>
+                            <div style="padding: 0.75rem 1.5rem; background: #f8d7da; color: #842029; border-radius: 8px; font-weight: 600;">
+                                ❌ Order Cancelled - No Payment Required
+                            </div>
+                        <?php endif; ?>
+                    </div>
+                </div>
+
+                <!-- Order Items -->
+                <div class="order-items">
+                    <?php foreach ($order['items'] as $item): ?>
+                    <div class="order-item">
+                        <div class="item-image-container">
+                            <?php if (!empty($item['image'])): ?>
+                                <img src="../uploads/products/<?php echo htmlspecialchars($item['image']); ?>" 
+                                     alt="<?php echo htmlspecialchars($item['product_name']); ?>" 
+                                     class="item-image">
+                            <?php else: ?>
+                                <div class="no-image">🧁</div>
+                            <?php endif; ?>
+                        </div>
+                        <div class="item-details">
+                            <div class="item-name"><?php echo htmlspecialchars($item['product_name']); ?></div>
+                            <div class="item-shop">🪙 <?php echo htmlspecialchars($item['shop_name']); ?></div>
+                            <div class="item-quantity">Qty: <?php echo $item['quantity']; ?> × ₹<?php echo number_format($item['price'], 2); ?></div>
+                        </div>
+                        <div class="item-price">₹<?php echo number_format($item['price'] * $item['quantity'], 2); ?></div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <!-- Order Actions -->
+                <div class="order-actions">
+                    <?php if ($order['order_status'] === 'pending'): ?>
+                        <button class="btn btn-primary" onclick="updateOrderStatus(<?php echo $order['order_id']; ?>, 'processing')">
+                            ⚡ Start Processing
+                        </button>
+                        <button class="btn btn-danger" onclick="cancelOrder(<?php echo $order['order_id']; ?>)">
+                            ❌ Cancel Order
+                        </button>
+                    <?php elseif ($order['order_status'] === 'processing'): ?>
+                        <button class="btn btn-success" onclick="updateOrderStatus(<?php echo $order['order_id']; ?>, 'completed')">
+                            ✅ Mark as Completed
+                        </button>
+                        <button class="btn btn-danger" onclick="cancelOrder(<?php echo $order['order_id']; ?>)">
+                            ❌ Cancel Order
+                        </button>
+                    <?php elseif ($order['order_status'] === 'completed'): ?>
+                        <div style="padding: 1rem; color: #0f5132; background: #d1e7dd; border-radius: 8px; font-weight: 600;">
+                            ✅ Order Completed - Customer can now leave feedback
+                        </div>
+                    <?php elseif ($order['order_status'] === 'cancelled'): ?>
+                        <div style="padding: 1rem; color: #842029; background: #f8d7da; border-radius: 8px; font-weight: 600;">
+                            ❌ Order was cancelled
+                        </div>
+                    <?php endif; ?>
+                </div>
             </div>
-            <?php endif; ?>
+            <?php endforeach; ?>
         </div>
+        <?php else: ?>
+        <div class="no-orders">
+            <div class="no-orders-icon">📦</div>
+            <h3>No Orders Found</h3>
+            <p>Orders matching your filter will appear here</p>
+        </div>
+        <?php endif; ?>
     </div>
 
     <script>
         function toggleDropdown() {
             const dropdown = document.getElementById('userDropdown');
-            const button = document.querySelector('.user-profile-btn');
             dropdown.classList.toggle('show');
-            button.classList.toggle('active');
         }
 
         window.addEventListener('click', function(e) {
@@ -679,21 +810,46 @@ $conn->close();
             
             if (!button.contains(e.target) && !dropdown.contains(e.target)) {
                 dropdown.classList.remove('show');
-                button.classList.remove('active');
             }
         });
 
-        function filterByStatus() {
-            const status = document.getElementById('statusFilter').value;
-            window.location.href = `orders.php?status=${status}`;
+        // Mark payment as paid
+        function markAsPaid(orderId) {
+            if (!confirm('Confirm that you have received the cash payment for this order?')) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'mark_paid');
+            formData.append('order_id', orderId);
+
+            fetch('payment_manager.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    location.reload();
+                } else {
+                    alert('❌ Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
         }
 
+        // Update order status
         function updateOrderStatus(orderId, newStatus) {
-            const confirmMessage = newStatus === 'processing' 
-                ? 'Start processing this order?' 
-                : 'Mark this order as completed?';
-            
-            if (!confirm(confirmMessage)) {
+            const statusMessages = {
+                'processing': 'Start processing this order?',
+                'completed': 'Mark this order as completed?'
+            };
+
+            if (!confirm(statusMessages[newStatus])) {
                 return;
             }
 
@@ -709,10 +865,10 @@ $conn->close();
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
+                    alert('✅ ' + data.message);
                     location.reload();
                 } else {
-                    alert('Error: ' + data.message);
+                    alert('❌ Error: ' + data.message);
                 }
             })
             .catch(error => {
@@ -720,6 +876,38 @@ $conn->close();
                 alert('An error occurred. Please try again.');
             });
         }
+
+        // Cancel order without reason
+        function cancelOrder(orderId) {
+            if (!confirm('Do you want to cancel this order and restore stock?')) {
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('action', 'cancel_order');
+            formData.append('order_id', orderId);
+
+            fetch('orders_handler.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('✅ ' + data.message);
+                    location.reload();
+                } else {
+                    alert('❌ Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
+        }
+    </script>
+</body>
+</html>
     </script>
 </body>
 </html>

@@ -1,119 +1,194 @@
 <?php
-ob_start();
+/*
+ * VENDOR ORDERS HANDLER - Complete Version
+ * Purpose: Update order status and handle cancellations with stock restoration
+ * Actions: update_status, cancel_order
+ */
 
 require_once '../config/auth_check.php';
+require_once '../config/database.php';
 
-ob_clean();
 header('Content-Type: application/json');
 
-// Check if user is vendor
+// Only vendors can manage orders
 if ($_SESSION['role'] !== 'vendor') {
     echo json_encode(['success' => false, 'message' => 'Unauthorized']);
     exit;
 }
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    echo json_encode(['success' => false, 'message' => 'Invalid request method']);
-    exit;
-}
-
-// Get action type
-$action = $_POST['action'] ?? '';
-
-if (empty($action)) {
-    echo json_encode(['success' => false, 'message' => 'Action is required']);
-    exit;
-}
-
-require_once '../config/database.php';
+$vendor_user_id = $_SESSION['user_id'];
 $conn = getDBConnection();
 
-// Get vendor information
-$user_id = $_SESSION['user_id'];
-$stmt = $conn->prepare("SELECT vendor_id, status FROM Vendors WHERE user_id = ?");
-$stmt->bind_param("i", $user_id);
-$stmt->execute();
-$result = $stmt->get_result();
-$vendor = $result->fetch_assoc();
-$stmt->close();
+// Get vendor_id
+$vendor_query = "SELECT vendor_id FROM Vendors WHERE user_id = $vendor_user_id";
+$vendor_result = $conn->query($vendor_query);
 
-if (!$vendor || $vendor['status'] !== 'approved') {
-    echo json_encode(['success' => false, 'message' => 'Vendor not approved']);
+if ($vendor_result->num_rows === 0) {
+    echo json_encode(['success' => false, 'message' => 'Vendor not found']);
     $conn->close();
     exit;
 }
 
+$vendor = $vendor_result->fetch_assoc();
 $vendor_id = $vendor['vendor_id'];
 
-// Handle different actions
-switch ($action) {
-    case 'update_status':
-        updateOrderStatus($conn, $vendor_id);
-        break;
-    
-    default:
-        echo json_encode(['success' => false, 'message' => 'Invalid action']);
-        break;
-}
+$action = $_POST['action'] ?? '';
 
-$conn->close();
-ob_end_flush();
-
-// ============================================
-// UPDATE ORDER STATUS FUNCTION
-// ============================================
-function updateOrderStatus($conn, $vendor_id) {
-    $order_id = $_POST['order_id'] ?? '';
-    $new_status = $_POST['status'] ?? '';
+// Update order status (processing, completed)
+if ($action === 'update_status' && isset($_POST['order_id']) && isset($_POST['status'])) {
+    $order_id = intval($_POST['order_id']);
+    $new_status = $_POST['status'];
     
-    // Validate inputs
-    if (empty($order_id) || empty($new_status)) {
-        echo json_encode(['success' => false, 'message' => 'Order ID and status are required']);
-        return;
-    }
-    
-    // Validate status values
-    $allowed_statuses = ['pending', 'processing', 'completed', 'cancelled'];
+    // Validate status
+    $allowed_statuses = ['processing', 'completed'];
     if (!in_array($new_status, $allowed_statuses)) {
         echo json_encode(['success' => false, 'message' => 'Invalid status']);
-        return;
+        $conn->close();
+        exit;
     }
     
-    // Verify order contains vendor's products
-    $stmt = $conn->prepare("SELECT DISTINCT o.order_id 
-                           FROM Orders o
-                           JOIN Order_Items oi ON o.order_id = oi.order_id
-                           JOIN Products p ON oi.product_id = p.product_id
-                           JOIN Shops s ON p.shop_id = s.shop_id
-                           WHERE o.order_id = ? AND s.vendor_id = ?");
-    $stmt->bind_param("ii", $order_id, $vendor_id);
-    $stmt->execute();
-    $result = $stmt->get_result();
+    // Verify order belongs to vendor
+    $verify_query = "SELECT o.order_id, o.status as current_status
+                     FROM Orders o
+                     JOIN Order_Items oi ON o.order_id = oi.order_id
+                     JOIN Products p ON oi.product_id = p.product_id
+                     JOIN Shops s ON p.shop_id = s.shop_id
+                     WHERE o.order_id = $order_id AND s.vendor_id = $vendor_id
+                     LIMIT 1";
     
-    if ($result->num_rows === 0) {
+    $verify_result = $conn->query($verify_query);
+    
+    if ($verify_result->num_rows === 0) {
         echo json_encode(['success' => false, 'message' => 'Order not found or unauthorized']);
-        $stmt->close();
-        return;
+        $conn->close();
+        exit;
     }
-    $stmt->close();
+    
+    $order_info = $verify_result->fetch_assoc();
+    
+    // Validate status transition
+    $valid_transitions = [
+        'pending' => ['processing'],
+        'processing' => ['completed']
+    ];
+    
+    if (!isset($valid_transitions[$order_info['current_status']]) || 
+        !in_array($new_status, $valid_transitions[$order_info['current_status']])) {
+        echo json_encode(['success' => false, 'message' => 'Invalid status transition']);
+        $conn->close();
+        exit;
+    }
     
     // Update order status
-    $stmt = $conn->prepare("UPDATE Orders SET status = ? WHERE order_id = ?");
-    $stmt->bind_param("si", $new_status, $order_id);
+    $update_query = "UPDATE Orders SET status = '$new_status' WHERE order_id = $order_id";
     
-    if ($stmt->execute()) {
+    if ($conn->query($update_query)) {
         $status_messages = [
-            'processing' => 'Order is now being processed!',
-            'completed' => 'Order marked as completed!',
-            'cancelled' => 'Order has been cancelled!'
+            'processing' => 'Order status updated to Processing',
+            'completed' => 'Order marked as completed'
         ];
         
-        $message = $status_messages[$new_status] ?? 'Order status updated!';
-        echo json_encode(['success' => true, 'message' => $message]);
+        echo json_encode([
+            'success' => true,
+            'message' => $status_messages[$new_status]
+        ]);
     } else {
         echo json_encode(['success' => false, 'message' => 'Failed to update order status']);
     }
-    
-    $stmt->close();
 }
+
+// Cancel order with stock restoration
+elseif ($action === 'cancel_order' && isset($_POST['order_id'])) {
+    $order_id = intval($_POST['order_id']);
+    $reason = isset($_POST['reason']) ? trim($_POST['reason']) : 'Cancelled by vendor';
+    
+    // Verify order belongs to vendor and get current status
+    $verify_query = "SELECT o.order_id, o.status
+                     FROM Orders o
+                     JOIN Order_Items oi ON o.order_id = oi.order_id
+                     JOIN Products p ON oi.product_id = p.product_id
+                     JOIN Shops s ON p.shop_id = s.shop_id
+                     WHERE o.order_id = $order_id AND s.vendor_id = $vendor_id
+                     LIMIT 1";
+    
+    $verify_result = $conn->query($verify_query);
+    
+    if ($verify_result->num_rows === 0) {
+        echo json_encode(['success' => false, 'message' => 'Order not found or unauthorized']);
+        $conn->close();
+        exit;
+    }
+    
+    $order_info = $verify_result->fetch_assoc();
+    
+    // Can't cancel already completed or cancelled orders
+    if ($order_info['status'] === 'completed') {
+        echo json_encode(['success' => false, 'message' => 'Cannot cancel completed orders']);
+        $conn->close();
+        exit;
+    }
+    
+    if ($order_info['status'] === 'cancelled') {
+        echo json_encode(['success' => false, 'message' => 'Order is already cancelled']);
+        $conn->close();
+        exit;
+    }
+    
+    // Start transaction for cancellation
+    $conn->begin_transaction();
+    
+    try {
+        // Get all order items for this vendor's products
+        $items_query = "SELECT oi.product_id, oi.quantity
+                        FROM Order_Items oi
+                        JOIN Products p ON oi.product_id = p.product_id
+                        JOIN Shops s ON p.shop_id = s.shop_id
+                        WHERE oi.order_id = $order_id AND s.vendor_id = $vendor_id";
+        
+        $items_result = $conn->query($items_query);
+        
+        // Restore stock for each product
+        while ($item = $items_result->fetch_assoc()) {
+            $product_id = $item['product_id'];
+            $quantity = $item['quantity'];
+            
+            $restore_stock = "UPDATE Products 
+                             SET quantity = quantity + $quantity 
+                             WHERE product_id = $product_id";
+            
+            if (!$conn->query($restore_stock)) {
+                throw new Exception('Failed to restore product stock');
+            }
+        }
+        
+        // Update order status to cancelled
+        $cancel_query = "UPDATE Orders 
+                        SET status = 'cancelled' 
+                        WHERE order_id = $order_id";
+        
+        if (!$conn->query($cancel_query)) {
+            throw new Exception('Failed to cancel order');
+        }
+        
+        $conn->commit();
+        
+        echo json_encode([
+            'success' => true,
+            'message' => 'Order cancelled successfully. Stock has been restored.'
+        ]);
+        
+    } catch (Exception $e) {
+        $conn->rollback();
+        echo json_encode([
+            'success' => false,
+            'message' => $e->getMessage()
+        ]);
+    }
+}
+
+else {
+    echo json_encode(['success' => false, 'message' => 'Invalid action']);
+}
+
+$conn->close();
 ?>

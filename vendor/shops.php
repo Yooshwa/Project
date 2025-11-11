@@ -526,7 +526,7 @@ $conn->close();
 </head>
 <body>
     <nav class="navbar">
-        <a href="dashboard.php" class="navbar-brand">🧁 Sweetkart Vendor</a>
+        <a href="dashboard.php" class="navbar-brand">Sweetkart Vendor</a>
         <ul class="navbar-menu">
             <li><a href="dashboard.php">Dashboard</a></li>
             <li><a href="shops.php" class="active">My Shops</a></li>
@@ -544,11 +544,11 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">🪙 VENDOR</div>
+                    <div class="user-badge">⚪ VENDOR</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
-                        <span>🚪</span> Logout
+                        <span>➜</span> Logout
                     </a>
                 </div>
             </div>
@@ -592,10 +592,10 @@ $conn->close();
                 </div>
                 <div class="shop-actions">
                     <button class="btn btn-edit" onclick="openEditShopModal(<?php echo htmlspecialchars(json_encode($shop)); ?>)">
-                        ✏️ Edit
+                        Edit
                     </button>
                     <button class="btn btn-delete" onclick="openDeleteModal(<?php echo $shop['shop_id']; ?>, '<?php echo htmlspecialchars($shop['shop_name'], ENT_QUOTES); ?>', <?php echo $shop['product_count']; ?>)">
-                        🗑️ Delete
+                        Delete
                     </button>
                 </div>
             </div>

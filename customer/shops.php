@@ -369,11 +369,6 @@ $conn->close();
             text-align: center;
         }
 
-        .shop-icon {
-            font-size: 3rem;
-            margin-bottom: 0.5rem;
-        }
-
         .shop-name {
             font-size: 1.5rem;
             font-weight: 600;
@@ -468,20 +463,6 @@ $conn->close();
             color: #7a5f57;
         }
 
-        /* Custom Cake Badge */
-        .custom-cake-badge {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.3rem;
-            background: #4caf50;
-            color: white;
-            padding: 0.4rem 0.8rem;
-            border-radius: 15px;
-            font-size: 0.85rem;
-            font-weight: 600;
-            margin-bottom: 1rem;
-        }
-
         /* View Products Button */
         .btn-view-products {
             width: 100%;
@@ -540,15 +521,15 @@ $conn->close();
 </head>
 <body>
     <nav class="navbar">
-        <a href="products.php" class="navbar-brand">🧁 Sweetkart</a>
+        <a href="products.php" class="navbar-brand"> Sweetkart</a>
         <ul class="navbar-menu">
-            <li><a href="products.php">🧁 Products</a></li>
-            <li><a href="shops.php" class="active">🪙 Shops</a></li>
-            <li><a href="custom_cakes.php">🎂 Custom Cakes</a></li>
-            <li><a href="orders.php">📦 Orders</a></li>
+            <li><a href="products.php"> Products</a></li>
+            <li><a href="shops.php" class="active"> Shops</a></li>
+            <li><a href="custom_cakes.php"> Custom Cakes</a></li>
+            <li><a href="orders.php"> Orders</a></li>
             <li>
                 <a href="cart.php">
-                    🛒 Cart
+                    Cart
                     <?php if ($cart_count > 0): ?>
                     <span class="cart-badge"><?php echo $cart_count; ?></span>
                     <?php endif; ?>
@@ -565,11 +546,11 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">🛒 CUSTOMER</div>
+                    <div class="user-badge">⚪ CUSTOMER</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
-                        <span>🚪</span> Logout
+                        <span>➜</span> Logout
                     </a>
                 </div>
             </div>
@@ -594,8 +575,7 @@ $conn->close();
         <div class="shops-grid">
             <?php foreach ($shops as $shop): ?>
             <div class="shop-card" onclick="viewShopProducts(<?php echo $shop['shop_id']; ?>)">
-                <div class="shop-header">
-                    <div class="shop-icon">🪙</div>
+                <div class="shop-header">  
                     <div class="shop-name"><?php echo htmlspecialchars($shop['shop_name']); ?></div>
                     <div class="vendor-name">by <?php echo htmlspecialchars($shop['vendor_name']); ?></div>
                 </div>
@@ -605,11 +585,7 @@ $conn->close();
                         📍 <?php echo nl2br(htmlspecialchars($shop['address'])); ?>
                     </div>
 
-                    <?php if ($shop['custom_cake_flag']): ?>
-                    <div class="custom-cake-badge">
-                        🎂 Custom Cakes Available
-                    </div>
-                    <?php endif; ?>
+                    
 
                     <!-- Rating Section -->
                     <div class="shop-rating">

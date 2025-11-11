@@ -4,7 +4,7 @@ require_once '../config/auth_check.php';
 
 // Check if user is admin
 if ($_SESSION['role'] !== 'admin') {
-    header("Location: ../home.php");
+    header("Location: ../index.php");
     exit;
 }
 
@@ -12,38 +12,26 @@ if ($_SESSION['role'] !== 'admin') {
 $user_name = $_SESSION['name'];
 $user_email = $_SESSION['email'];
 
-// Get statistics from database
+// Get database connection
 require_once '../config/database.php';
 $conn = getDBConnection();
 
-// Count total vendors
-$result = $conn->query("SELECT COUNT(*) as count FROM Vendors");
-$total_vendors = $result->fetch_assoc()['count'];
+// Get all customers with their information
+$query = "SELECT 
+    u.user_id,
+    u.name,
+    u.email,
+    u.address,
+    u.created_at
+FROM Users u
+WHERE u.role = 'customer'
+ORDER BY u.created_at DESC";
 
-// Count pending vendors
-$result = $conn->query("SELECT COUNT(*) as count FROM Vendors WHERE status = 'pending'");
-$pending_vendors = $result->fetch_assoc()['count'];
-
-// Count approved vendors
-$result = $conn->query("SELECT COUNT(*) as count FROM Vendors WHERE status = 'approved'");
-$approved_vendors = $result->fetch_assoc()['count'];
-
-// Count total customers
-$result = $conn->query("SELECT COUNT(*) as count FROM Users WHERE role = 'customer'");
-$total_customers = $result->fetch_assoc()['count'];
-
-// Count total shops (ONLY from approved vendors)
-$result = $conn->query("SELECT COUNT(*) as count FROM Shops s 
-                        JOIN Vendors v ON s.vendor_id = v.vendor_id 
-                        WHERE v.status = 'approved'");
-$total_shops = $result->fetch_assoc()['count'];
-
-// Count total products (ONLY from approved vendors' shops)
-$result = $conn->query("SELECT COUNT(*) as count FROM Products p 
-                        JOIN Shops s ON p.shop_id = s.shop_id 
-                        JOIN Vendors v ON s.vendor_id = v.vendor_id 
-                        WHERE v.status = 'approved'");
-$total_products = $result->fetch_assoc()['count'];
+$result = $conn->query($query);
+$customers = [];
+while ($row = $result->fetch_assoc()) {
+    $customers[] = $row;
+}
 
 $conn->close();
 ?>
@@ -52,7 +40,7 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - Sweetkart</title>
+    <title>Manage Customers - Sweetkart Admin</title>
     <style>
         * {
             margin: 0;
@@ -79,6 +67,7 @@ $conn->close();
             font-size: 1.5rem;
             font-weight: bold;
             color: #ff6b9d;
+            text-decoration: none;
         }
 
         .navbar-menu {
@@ -233,12 +222,12 @@ $conn->close();
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 2rem auto;
             padding: 0 2rem;
         }
 
-        .welcome-section {
+        .page-header {
             background: white;
             padding: 2rem;
             border-radius: 15px;
@@ -246,144 +235,167 @@ $conn->close();
             margin-bottom: 2rem;
         }
 
-        .welcome-section h1 {
+        .page-header h1 {
             color: #5a3e36;
             font-size: 2rem;
             margin-bottom: 0.5rem;
         }
 
-        .welcome-section p {
+        .page-header p {
             color: #7a5f57;
-            font-size: 1.1rem;
         }
 
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 1.5rem;
-            margin-bottom: 2rem;
-        }
-
-        .stat-card {
+        .customers-table {
             background: white;
-            padding: 1.5rem;
+            padding: 2rem;
             border-radius: 15px;
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-            transition: transform 0.3s;
-            text-decoration: none;
-            color: inherit;
+            overflow-x: auto;
         }
 
-        .stat-card:hover {
-            transform: translateY(-5px);
+        table {
+            width: 100%;
+            border-collapse: collapse;
         }
 
-        .stat-icon {
-            font-size: 3rem;
+        thead {
+            background: #fff5f7;
         }
 
-        .stat-info h3 {
-            color: #7a5f57;
-            font-size: 0.9rem;
-            font-weight: 500;
-            margin-bottom: 0.5rem;
-        }
-
-        .stat-info .stat-number {
+        th {
+            padding: 1rem;
+            text-align: left;
             color: #5a3e36;
-            font-size: 2rem;
-            font-weight: bold;
+            font-weight: 600;
+            border-bottom: 2px solid #ffe8ec;
+            white-space: nowrap;
         }
 
-        .stat-card.pending {
-            border-left: 4px solid #ffa500;
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid #ffe8ec;
+            color: #5a3e36;
         }
 
-        .stat-card.approved {
-            border-left: 4px solid #4caf50;
+        tr:hover {
+            background: #fff5f7;
         }
 
-        .stat-card.customers {
-            border-left: 4px solid #2196f3;
+        .btn {
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+            white-space: nowrap;
         }
 
-        .stat-card.shops {
-            border-left: 4px solid #9c27b0;
+        .btn-delete {
+            background: #f44336;
+            color: white;
         }
 
-        .stat-card.products {
-            border-left: 4px solid #ff6b9d;
+        .btn-delete:hover {
+            background: #da190b;
+            transform: translateY(-2px);
         }
 
-        .alert {
+        .no-customers {
+            text-align: center;
+            padding: 3rem;
+            color: #7a5f57;
+        }
+
+        .no-customers-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Confirmation Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.3s;
+        }
+
+        .modal-content {
+            background: white;
+            margin: 10% auto;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3);
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-header {
+            color: #5a3e36;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .modal-body {
+            color: #7a5f57;
+            margin-bottom: 1.5rem;
+            line-height: 1.6;
+        }
+
+        .modal-warning {
             background: #fff3cd;
-            border-left: 4px solid #ffa500;
             padding: 1rem;
             border-radius: 8px;
-            margin-bottom: 2rem;
+            margin-top: 1rem;
+            border-left: 4px solid #ffa500;
         }
 
-        .alert-icon {
-            font-size: 1.5rem;
-            margin-right: 0.5rem;
-        }
-
-        .quick-access {
-            background: white;
-            padding: 2rem;
-            border-radius: 15px;
-            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
-        }
-
-        .quick-access h2 {
-            color: #5a3e36;
-            font-size: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        .quick-links {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 1rem;
-        }
-
-        .quick-link {
+        .modal-buttons {
             display: flex;
-            align-items: center;
             gap: 1rem;
-            padding: 1rem;
-            background: #fff5f7;
-            border-radius: 10px;
-            text-decoration: none;
-            color: #5a3e36;
-            transition: all 0.3s;
+            justify-content: flex-end;
         }
 
-        .quick-link:hover {
-            background: linear-gradient(135deg, #ff6b9d 0%, #ff8fab 100%);
+        .btn-cancel {
+            background: #6c757d;
             color: white;
-            transform: translateX(5px);
         }
 
-        .quick-link-icon {
-            font-size: 2rem;
+        .btn-cancel:hover {
+            background: #5a6268;
         }
 
-        .quick-link-text {
-            font-weight: 600;
+        .btn-confirm-delete {
+            background: #f44336;
+            color: white;
+        }
+
+        .btn-confirm-delete:hover {
+            background: #da190b;
         }
     </style>
 </head>
 <body>
     <nav class="navbar">
-        <div class="navbar-brand">Sweetkart Admin</div>
+        <a href="dashboard.php" class="navbar-brand">Sweetkart Admin</a>
         <ul class="navbar-menu">
-            <li><a href="dashboard.php" class="active">Dashboard</a></li>
+            <li><a href="dashboard.php">Dashboard</a></li>
             <li><a href="vendors.php">Manage Vendors</a></li>
-            <li><a href="customers.php">Manage Customers</a></li>
+            <li><a href="customers.php" class="active">Manage Customers</a></li>
         </ul>
         <div class="navbar-user">
             <button class="user-profile-btn" onclick="toggleDropdown()">
@@ -407,77 +419,79 @@ $conn->close();
     </nav>
 
     <div class="container">
-        <div class="welcome-section">
-            <h1>Welcome back, <?php echo htmlspecialchars($user_name); ?>!</h1>
-            <p>Here's what's happening with your platform today</p>
+        <div class="page-header">
+            <h1>Customer Management</h1>
+            <p>View and manage customer accounts</p>
         </div>
 
-        <?php if ($pending_vendors > 0): ?>
-        <div class="alert">
-            <span class="alert-icon">⚠️</span>
-            <strong>Action Required:</strong> You have <?php echo $pending_vendors; ?> vendor(s) waiting for approval.
-            <a href="vendors.php" style="color: #ff6b9d; font-weight: 600; margin-left: 1rem;">Review Now →</a>
+        <div class="customers-table">
+            <?php if (count($customers) > 0): ?>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Customer Info</th>
+                        <th>Email</th>
+                        <th>Address</th>
+                        <th>Registered</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <?php foreach ($customers as $customer): ?>
+                    <tr>
+                        <td>
+                            <strong><?php echo htmlspecialchars($customer['name']); ?></strong>
+                            <br>
+                            <small style="color: #7a5f57;">ID: <?php echo $customer['user_id']; ?></small>
+                        </td>
+                        <td><?php echo htmlspecialchars($customer['email']); ?></td>
+                        <td><?php echo htmlspecialchars($customer['address'] ?? 'Not provided'); ?></td>
+                        <td><?php echo date('M d, Y', strtotime($customer['created_at'])); ?></td>
+                        <td>
+                            <button class="btn btn-delete" onclick="showDeleteModal(<?php echo $customer['user_id']; ?>, '<?php echo htmlspecialchars($customer['name'], ENT_QUOTES); ?>')">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                    <?php endforeach; ?>
+                </tbody>
+            </table>
+            <?php else: ?>
+            <div class="no-customers">
+                <div class="no-customers-icon">👥</div>
+                <h3>No Customers Yet</h3>
+                <p>Customers will appear here once they register</p>
+            </div>
+            <?php endif; ?>
         </div>
-        <?php endif; ?>
+    </div>
 
-        <div class="stats-grid">
-            <a href="vendors.php" class="stat-card pending">
-                <div class="stat-icon">⏳</div>
-                <div class="stat-info">
-                    <h3>Pending Vendors</h3>
-                    <div class="stat-number"><?php echo $pending_vendors; ?></div>
-                </div>
-            </a>
-
-            <a href="vendors.php" class="stat-card approved">
-                <div class="stat-icon">✅</div>
-                <div class="stat-info">
-                    <h3>Approved Vendors</h3>
-                    <div class="stat-number"><?php echo $approved_vendors; ?></div>
-                </div>
-            </a>
-
-            <a href="customers.php" class="stat-card customers">
-                <div class="stat-icon">👥</div>
-                <div class="stat-info">
-                    <h3>Total Customers</h3>
-                    <div class="stat-number"><?php echo $total_customers; ?></div>
-                </div>
-            </a>
-
-            <div class="stat-card shops">
-                <div class="stat-icon">🏪</div>
-                <div class="stat-info">
-                    <h3>Total Shops</h3>
-                    <div class="stat-number"><?php echo $total_shops; ?></div>
+    <!-- Delete Confirmation Modal -->
+    <div id="deleteModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">⚠️ Confirm Deletion</div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete customer <strong id="customerName"></strong>?</p>
+                <div class="modal-warning">
+                    <strong>⚠️ Warning:</strong> This action cannot be undone!
+                    <br><br>
+                    This will permanently delete:
+                    <ul style="margin: 0.5rem 0 0 1.5rem;">
+                        <li>Customer account</li>
+                        <li>All associated data</li>
+                    </ul>
                 </div>
             </div>
-
-            <div class="stat-card products">
-                <div class="stat-icon">🧁</div>
-                <div class="stat-info">
-                    <h3>Total Products</h3>
-                    <div class="stat-number"><?php echo $total_products; ?></div>
-                </div>
-            </div>
-        </div>
-
-        <div class="quick-access">
-            <h2>Quick Access</h2>
-            <div class="quick-links">
-                <a href="vendors.php" class="quick-link">
-                    <div class="quick-link-icon">👥</div>
-                    <div class="quick-link-text">Manage Vendors</div>
-                </a>
-                <a href="customers.php" class="quick-link">
-                    <div class="quick-link-icon">👥</div>
-                    <div class="quick-link-text">Manage Customers</div>
-                </a>
+            <div class="modal-buttons">
+                <button class="btn btn-cancel" onclick="closeDeleteModal()">Cancel</button>
+                <button class="btn btn-confirm-delete" onclick="confirmDelete()">Delete Permanently</button>
             </div>
         </div>
     </div>
 
     <script>
+        let deleteCustomerId = null;
+
         function toggleDropdown() {
             const dropdown = document.getElementById('userDropdown');
             const button = document.querySelector('.user-profile-btn');
@@ -495,6 +509,51 @@ $conn->close();
                 button.classList.remove('active');
             }
         });
+
+        function showDeleteModal(customerId, customerName) {
+            deleteCustomerId = customerId;
+            document.getElementById('customerName').textContent = customerName;
+            document.getElementById('deleteModal').style.display = 'block';
+        }
+
+        function closeDeleteModal() {
+            document.getElementById('deleteModal').style.display = 'none';
+            deleteCustomerId = null;
+        }
+
+        function confirmDelete() {
+            if (!deleteCustomerId) return;
+
+            fetch('delete_customer.php', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `customer_id=${deleteCustomerId}`
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message);
+                    closeDeleteModal();
+                    location.reload();
+                } else {
+                    alert('Error: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred. Please try again.');
+            });
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('deleteModal');
+            if (event.target == modal) {
+                closeDeleteModal();
+            }
+        }
     </script>
 </body>
 </html>

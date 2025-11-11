@@ -267,7 +267,7 @@
 <body>
     <nav>
         <div class="nav-container">
-            <a href="index.php" class="logo">🧁 Sweetkart</a>
+            <a href="index.php" class="logo">Sweetkart</a>
             <div class="menu-toggle" onclick="toggleMenu()">
                 <span></span>
                 <span></span>

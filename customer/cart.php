@@ -50,6 +50,7 @@ $conn->close();
 ?>
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -144,10 +145,6 @@ $conn->close();
             transition: all 0.3s;
         }
 
-        .user-profile-btn:hover {
-            background: #fff5f7;
-        }
-
         .user-avatar {
             width: 32px;
             height: 32px;
@@ -185,18 +182,6 @@ $conn->close();
 
         .user-dropdown.show {
             display: block;
-            animation: slideDown 0.3s ease;
-        }
-
-        @keyframes slideDown {
-            from {
-                opacity: 0;
-                transform: translateY(-10px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
         }
 
         .dropdown-header {
@@ -253,7 +238,7 @@ $conn->close();
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 2rem auto;
             padding: 0 2rem;
         }
@@ -264,16 +249,18 @@ $conn->close();
             border-radius: 15px;
             box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
             margin-bottom: 2rem;
+            text-align: center;
         }
 
         .page-header h1 {
             color: #5a3e36;
-            font-size: 2rem;
+            font-size: 2.5rem;
             margin-bottom: 0.5rem;
         }
 
         .page-header p {
             color: #7a5f57;
+            font-size: 1.1rem;
         }
 
         .cart-content {
@@ -530,19 +517,20 @@ $conn->close();
         }
     </style>
 </head>
+
 <body>
     <nav class="navbar">
-        <a href="products.php" class="navbar-brand">🧁 Sweetkart</a>
+        <a href="products.php" class="navbar-brand"> Sweetkart</a>
         <ul class="navbar-menu">
-            <li><a href="products.php">🧁 Products</a></li>
-            <li><a href="shops.php">🪙 Shops</a></li>
-            <li><a href="custom_cakes.php">🎂 Custom Cakes</a></li>
-            <li><a href="orders.php">📦 Orders</a></li>
+            <li><a href="products.php"> Products</a></li>
+            <li><a href="shops.php"> Shops</a></li>
+            <li><a href="custom_cakes.php"> Custom Cakes</a></li>
+            <li><a href="orders.php"> Orders</a></li>
             <li>
                 <a href="cart.php" class="active">
-                    🛒 Cart
+                     Cart
                     <?php if ($cart_count > 0): ?>
-                    <span class="cart-badge"><?php echo $cart_count; ?></span>
+                        <span class="cart-badge"><?php echo $cart_count; ?></span>
                     <?php endif; ?>
                 </a>
             </li>
@@ -557,11 +545,11 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">🛒 CUSTOMER</div>
+                    <div class="user-badge">⚪ CUSTOMER</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
-                        <span>🚪</span> Logout
+                        <span>➜</span> Logout
                     </a>
                 </div>
             </div>
@@ -575,65 +563,65 @@ $conn->close();
         </div>
 
         <?php if (count($cart_items) > 0): ?>
-        <div class="cart-content">
-            <div class="cart-items">
-                <?php foreach ($cart_items as $item): ?>
-                <div class="cart-item">
-                    <div class="item-image-container">
-                        <?php if (!empty($item['image'])): ?>
-                            <img src="../uploads/products/<?php echo htmlspecialchars($item['image']); ?>" 
-                                 alt="<?php echo htmlspecialchars($item['product_name']); ?>" 
-                                 class="item-image">
-                        <?php else: ?>
-                            <div class="no-image">🧁</div>
-                        <?php endif; ?>
-                    </div>
-                    <div class="item-details">
-                        <div class="item-name"><?php echo htmlspecialchars($item['product_name']); ?></div>
-                        <div class="item-shop">🪙 <?php echo htmlspecialchars($item['shop_name']); ?></div>
-                        <div class="item-price">₹<?php echo number_format($item['price'], 2); ?> × <?php echo $item['cart_quantity']; ?> = 
-                            ₹<?php echo number_format($item['price'] * $item['cart_quantity'], 2); ?>
+            <div class="cart-content">
+                <div class="cart-items">
+                    <?php foreach ($cart_items as $item): ?>
+                        <div class="cart-item">
+                            <div class="item-image-container">
+                                <?php if (!empty($item['image'])): ?>
+                                    <img src="../uploads/products/<?php echo htmlspecialchars($item['image']); ?>"
+                                        alt="<?php echo htmlspecialchars($item['product_name']); ?>"
+                                        class="item-image">
+                                <?php else: ?>
+                                    <div class="no-image">🧁</div>
+                                <?php endif; ?>
+                            </div>
+                            <div class="item-details">
+                                <div class="item-name"><?php echo htmlspecialchars($item['product_name']); ?></div>
+                                <div class="item-shop">🪙 <?php echo htmlspecialchars($item['shop_name']); ?></div>
+                                <div class="item-price">₹<?php echo number_format($item['price'], 2); ?> × <?php echo $item['cart_quantity']; ?> =
+                                    ₹<?php echo number_format($item['price'] * $item['cart_quantity'], 2); ?>
+                                </div>
+                            </div>
+                            <div class="item-actions">
+                                <div class="quantity-controls">
+                                    <button class="qty-btn" onclick="updateQuantity(<?php echo $item['cart_id']; ?>, -1, <?php echo $item['cart_quantity']; ?>)">−</button>
+                                    <span class="qty-value" id="qty-<?php echo $item['cart_id']; ?>"><?php echo $item['cart_quantity']; ?></span>
+                                    <button class="qty-btn" onclick="updateQuantity(<?php echo $item['cart_id']; ?>, 1, <?php echo $item['cart_quantity']; ?>, <?php echo $item['stock_quantity']; ?>)">+</button>
+                                </div>
+                                <button class="btn-remove" onclick="removeItem(<?php echo $item['cart_id']; ?>, '<?php echo htmlspecialchars($item['product_name'], ENT_QUOTES); ?>')">
+                                    🗑️ Remove
+                                </button>
+                            </div>
                         </div>
-                    </div>
-                    <div class="item-actions">
-                        <div class="quantity-controls">
-                            <button class="qty-btn" onclick="updateQuantity(<?php echo $item['cart_id']; ?>, -1, <?php echo $item['cart_quantity']; ?>)">−</button>
-                            <span class="qty-value" id="qty-<?php echo $item['cart_id']; ?>"><?php echo $item['cart_quantity']; ?></span>
-                            <button class="qty-btn" onclick="updateQuantity(<?php echo $item['cart_id']; ?>, 1, <?php echo $item['cart_quantity']; ?>, <?php echo $item['stock_quantity']; ?>)">+</button>
-                        </div>
-                        <button class="btn-remove" onclick="removeItem(<?php echo $item['cart_id']; ?>, '<?php echo htmlspecialchars($item['product_name'], ENT_QUOTES); ?>')">
-                            🗑️ Remove
-                        </button>
-                    </div>
+                    <?php endforeach; ?>
                 </div>
-                <?php endforeach; ?>
-            </div>
 
-            <div class="cart-summary">
-                <div class="summary-title">Order Summary</div>
-                <div class="summary-row">
-                    <span>Subtotal (<?php echo $cart_count; ?> items)</span>
-                    <span>₹<?php echo number_format($total, 2); ?></span>
+                <div class="cart-summary">
+                    <div class="summary-title">Order Summary</div>
+                    <div class="summary-row">
+                        <span>Subtotal (<?php echo $cart_count; ?> items)</span>
+                        <span>₹<?php echo number_format($total, 2); ?></span>
+                    </div>
+                    <div class="summary-row total">
+                        <span>Total</span>
+                        <span class="total-price">₹<?php echo number_format($total, 2); ?></span>
+                    </div>
+                    <button class="btn-checkout" onclick="window.location.href='checkout.php'">
+                        💳 Proceed to Checkout
+                    </button>
+                    <a href="products.php" class="btn-continue">← Continue Shopping</a>
                 </div>
-                <div class="summary-row total">
-                    <span>Total</span>
-                    <span class="total-price">₹<?php echo number_format($total, 2); ?></span>
-                </div>
-                <button class="btn-checkout" onclick="window.location.href='checkout.php'">
-                    💳 Proceed to Checkout
-                </button>
-                <a href="products.php" class="btn-continue">← Continue Shopping</a>
             </div>
-        </div>
         <?php else: ?>
-        <div class="empty-cart">
-            <div class="empty-icon">🛒</div>
-            <h3>Your Cart is Empty</h3>
-            <p>Add some delicious treats to get started!</p>
-            <a href="products.php" class="btn-checkout" style="display: inline-block; text-decoration: none; max-width: 300px; margin: 0 auto;">
-                Browse Products
-            </a>
-        </div>
+            <div class="empty-cart">
+                <div class="empty-icon">🛒</div>
+                <h3>Your Cart is Empty</h3>
+                <p>Add some delicious treats to get started!</p>
+                <a href="products.php" class="btn-checkout" style="display: inline-block; text-decoration: none; max-width: 300px; margin: 0 auto;">
+                    Browse Products
+                </a>
+            </div>
         <?php endif; ?>
     </div>
 
@@ -648,7 +636,7 @@ $conn->close();
         window.addEventListener('click', function(e) {
             const dropdown = document.getElementById('userDropdown');
             const button = document.querySelector('.user-profile-btn');
-            
+
             if (!button.contains(e.target) && !dropdown.contains(e.target)) {
                 dropdown.classList.remove('show');
                 button.classList.remove('active');
@@ -657,66 +645,67 @@ $conn->close();
 
         function updateQuantity(cartId, change, currentQty, maxStock = 999) {
             const newQty = currentQty + change;
-            
+
             if (newQty < 1) {
                 alert('Quantity cannot be less than 1');
                 return;
             }
-            
+
             if (newQty > maxStock) {
                 alert('Not enough stock available');
                 return;
             }
-            
+
             const formData = new FormData();
             formData.append('action', 'update');
             formData.append('cart_id', cartId);
             formData.append('quantity', newQty);
-            
+
             fetch('cart_manager.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred. Please try again.');
-            });
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                });
         }
 
         function removeItem(cartId, productName) {
             if (!confirm(`Remove "${productName}" from cart?`)) {
                 return;
             }
-            
+
             const formData = new FormData();
             formData.append('action', 'remove');
             formData.append('cart_id', cartId);
-            
+
             fetch('cart_manager.php', {
-                method: 'POST',
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    location.reload();
-                } else {
-                    alert('Error: ' + data.message);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred. Please try again.');
-            });
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Error: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred. Please try again.');
+                });
         }
     </script>
 </body>
+
 </html>

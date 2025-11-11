@@ -74,7 +74,7 @@ while ($row = $result->fetch_assoc()) {
 }
 
 // Get all categories for the add/edit form
-$categories_query = "SELECT category_id, category_name FROM Categories ORDER BY category_name";
+$categories_query = "SELECT category_id, category_name FROM Categories ORDER BY CASE WHEN category_name = 'Others' THEN 1 ELSE 0 END, category_name";
 $categories_result = $conn->query($categories_query);
 $categories = [];
 while ($row = $categories_result->fetch_assoc()) {
@@ -590,7 +590,7 @@ $conn->close();
 </head>
 <body>
     <nav class="navbar">
-        <a href="dashboard.php" class="navbar-brand">🧁 Sweetkart Vendor</a>
+        <a href="dashboard.php" class="navbar-brand"> Sweetkart Vendor</a>
         <ul class="navbar-menu">
             <li><a href="dashboard.php">Dashboard</a></li>
             <li><a href="shops.php">My Shops</a></li>
@@ -608,11 +608,11 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">🪙 VENDOR</div>
+                    <div class="user-badge">⚪ VENDOR</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
-                        <span>🚪</span> Logout
+                        <span>➜</span> Logout
                     </a>
                 </div>
             </div>
