@@ -578,15 +578,15 @@ $conn->close();
 </head>
 <body>
     <nav class="navbar">
-        <a href="products.php" class="navbar-brand">🧁 Sweetkart</a>
+        <a href="products.php" class="navbar-brand"> Sweetkart</a>
         <ul class="navbar-menu">
-            <li><a href="products.php" class="active">🧁 Products</a></li>
-            <li><a href="shops.php">🪙 Shops</a></li>
-            <li><a href="custom_cakes.php">🎂 Custom Cakes</a></li>
-            <li><a href="orders.php">📦 Orders</a></li>
+            <li><a href="products.php" class="active"> Products</a></li>
+            <li><a href="shops.php"> Shops</a></li>
+            <li><a href="custom_cakes.php"> Custom Cakes</a></li>
+            <li><a href="orders.php"> Orders</a></li>
             <li>
                 <a href="cart.php">
-                    🛒 Cart
+                     Cart
                     <?php if ($cart_count > 0): ?>
                     <span class="cart-badge"><?php echo $cart_count; ?></span>
                     <?php endif; ?>
@@ -603,11 +603,11 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">🛒 CUSTOMER</div>
+                    <div class="user-badge">⚪ CUSTOMER</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
-                        <span>🚪</span> Logout
+                        <span>➜</span> Logout
                     </a>
                 </div>
             </div>
