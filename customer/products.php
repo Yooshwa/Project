@@ -20,15 +20,27 @@ $conn = getDBConnection();
 // Get filter parameters
 $search = $_GET['search'] ?? '';
 $category = $_GET['category'] ?? 'all';
-//$shop = $_GET['shop'] ?? 'all';
+$shop = $_GET['shop'] ?? 'all';
 $sort = $_GET['sort'] ?? 'newest';
 
 // Get all categories for filter
-$categories_query = "SELECT category_id, category_name FROM Categories ORDER BY CASE WHEN category_name = 'Others' THEN 1 ELSE 0 END, category_name";
+$categories_query = "SELECT category_id, category_name FROM Categories ORDER BY category_name";
 $categories_result = $conn->query($categories_query);
 $categories = [];
 while ($row = $categories_result->fetch_assoc()) {
     $categories[] = $row;
+}
+
+// Get all approved vendor shops for filter
+$shops_query = "SELECT DISTINCT s.shop_id, s.shop_name 
+                FROM Shops s 
+                JOIN Vendors v ON s.vendor_id = v.vendor_id 
+                WHERE v.status = 'approved' 
+                ORDER BY s.shop_name";
+$shops_result = $conn->query($shops_query);
+$shops = [];
+while ($row = $shops_result->fetch_assoc()) {
+    $shops[] = $row;
 }
 
 // Build products query with filters
@@ -58,6 +70,11 @@ if (!empty($search)) {
 // Apply category filter
 if ($category !== 'all') {
     $products_query .= " AND c.category_id = " . intval($category);
+}
+
+// Apply shop filter
+if ($shop !== 'all') {
+    $products_query .= " AND s.shop_id = " . intval($shop);
 }
 
 // Apply sorting
@@ -421,6 +438,7 @@ $conn->close();
             font-weight: 600;
             margin-bottom: 0.5rem;
             display: -webkit-box;
+            -webkit-line-clamp: 2;
             -webkit-box-orient: vertical;
             overflow: hidden;
         }
@@ -561,15 +579,15 @@ $conn->close();
 </head>
 <body>
     <nav class="navbar">
-        <a href="products.php" class="navbar-brand"> Sweetkart</a>
+        <a href="products.php" class="navbar-brand">🧁 Sweetkart</a>
         <ul class="navbar-menu">
-            <li><a href="products.php" class="active"> Products</a></li>
-            <li><a href="shops.php"> Shops</a></li>
-            <li><a href="custom_cakes.php"> Custom Cakes</a></li>
-            <li><a href="orders.php"> Orders</a></li>
+            <li><a href="products.php" class="active">🧁 Products</a></li>
+            <li><a href="shops.php">🪙 Shops</a></li>
+            <li><a href="custom_cakes.php">🎂 Custom Cakes</a></li>
+            <li><a href="orders.php">📦 Orders</a></li>
             <li>
                 <a href="cart.php">
-                    Cart
+                    🛒 Cart
                     <?php if ($cart_count > 0): ?>
                     <span class="cart-badge"><?php echo $cart_count; ?></span>
                     <?php endif; ?>
@@ -586,11 +604,11 @@ $conn->close();
                 <div class="dropdown-header">
                     <p><?php echo htmlspecialchars($user_name); ?></p>
                     <span><?php echo htmlspecialchars($user_email); ?></span>
-                    <div class="user-badge">⚪ CUSTOMER</div>
+                    <div class="user-badge">🛒 CUSTOMER</div>
                 </div>
                 <div class="dropdown-menu">
                     <a href="../auth/logout.php" class="dropdown-item logout">
-                        <span>➜</span> Logout
+                        <span>🚪</span> Logout
                     </a>
                 </div>
             </div>
@@ -700,13 +718,15 @@ $conn->close();
         function applyFilters() {
             const search = document.getElementById('searchInput').value;
             const category = document.getElementById('categoryFilter').value;
+            const shop = document.getElementById('shopFilter').value;
             const sort = document.getElementById('sortFilter').value;
             
             let url = 'products.php?';
             if (search) url += `search=${encodeURIComponent(search)}&`;
             if (category !== 'all') url += `category=${category}&`;
+            if (shop !== 'all') url += `shop=${shop}&`;
             url += `sort=${sort}`;
-        
+            
             window.location.href = url;
         }
 
