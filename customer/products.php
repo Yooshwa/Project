@@ -635,9 +635,7 @@ $conn->close();
                         <?php echo htmlspecialchars($cat['category_name']); ?>
                     </option>
                     <?php endforeach; ?>
-                </select>
-                
-                
+                </select>  
                 
                 <select class="filter-select" id="sortFilter" onchange="applyFilters()">
                     <option value="newest" <?php echo $sort === 'newest' ? 'selected' : ''; ?>>Newest First</option>
